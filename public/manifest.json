@@ -1,0 +1,18 @@
+{
+  "name": "주루마블",
+  "short_name": "주루마블",
+  "description": "걸리면 마시는 술자리 보드게임",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#140b10",
+  "theme_color": "#140b10",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
