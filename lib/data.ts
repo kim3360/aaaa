@@ -1,3 +1,5 @@
+import type { ChosungRound, MiniGame, RoulettePrize, Tile } from './types';
+
 export const PLAYER_COLORS = [
   '#3ecf6a',
   '#ffd24a',
@@ -9,7 +11,7 @@ export const PLAYER_COLORS = [
   '#fb7185',
 ];
 
-export const TILES = [
+export const TILES: Tile[] = [
   { id: 0, name: '출발', emoji: '🚩', type: 'start', desc: '한 바퀴 돌면 축하주 1잔!' },
   { id: 1, name: '술 1잔', emoji: '🍺', type: 'drink', amount: 1, desc: '본인 원샷 1잔' },
   { id: 2, name: '지정 1잔', emoji: '👉', type: 'point', amount: 1, desc: '마음에 드는 사람 지목' },
@@ -36,7 +38,7 @@ export const TILES = [
   { id: 23, name: '황금 룰렛', emoji: '👑', type: 'roulette', desc: '운명을 돌린다' },
 ];
 
-export const MINIGAMES = [
+export const MINIGAMES: MiniGame[] = [
   {
     id: 'baskin',
     name: '베스킨라빈스 31',
@@ -75,7 +77,7 @@ export const MINIGAMES = [
   },
 ];
 
-export const ROULETTE_PRIZES = [
+export const ROULETTE_PRIZES: RoulettePrize[] = [
   { label: '술 5잔', emoji: '💀', type: 'drink', amount: 5 },
   { label: '전원 2잔', emoji: '🌊', type: 'all', amount: 2 },
   { label: '한 명 빼고 원샷', emoji: '😈', type: 'all_but_one', amount: 1 },
@@ -86,7 +88,7 @@ export const ROULETTE_PRIZES = [
   { label: '랜덤 게임', emoji: '🎲', type: 'minigame' },
 ];
 
-export const CHOSUNG_ROUNDS = [
+export const CHOSUNG_ROUNDS: ChosungRound[] = [
   { hint: '과일', text: 'ㅅㄱ' },
   { hint: '과일', text: 'ㅂㄴㄴ' },
   { hint: '음식', text: 'ㅊㅋㅁㄴ' },
@@ -105,7 +107,7 @@ export const CHOSUNG_ROUNDS = [
   { hint: '라면', text: 'ㅅㄹㅁ' },
 ];
 
-export function tileGridPosition(id) {
+export function tileGridPosition(id: number) {
   if (id >= 0 && id <= 6) return { row: 1, col: id + 1 };
   if (id >= 7 && id <= 11) return { row: id - 5, col: 7 };
   if (id >= 12 && id <= 18) return { row: 7, col: 19 - id };

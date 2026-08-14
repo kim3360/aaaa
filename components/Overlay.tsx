@@ -1,16 +1,27 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { GameAction, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
 
-function ActorWait({ name }) {
+function ActorWait({ name }: { name: string }) {
   return <p className="wait-copy">{name}가 선택하는 중</p>;
 }
 
-function playerName(room, i) {
+function playerName(room: Room, i = 0) {
   return room.players[i]?.name || `플레이어 ${i + 1}`;
 }
 
-export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseStats, onEndGame }) {
+type OverlayProps = {
+  room: Room;
+  mine: number;
+  isHost: boolean;
+  showStats: boolean;
+  onAct: (data: GameAction) => void;
+  onCloseStats: () => void;
+  onEndGame: () => void;
+};
+
+export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseStats, onEndGame }: OverlayProps) {
   if (showStats) {
     const ranked = [...room.players].sort((a, b) => b.drinks - a.drinks);
     return (
@@ -54,8 +65,18 @@ export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseS
   );
 }
 
-function OverlayBody({ o, room, mine, onAct }) {
-  const spinRef = useRef(null);
+function OverlayBody({
+  o,
+  room,
+  mine,
+  onAct,
+}: {
+  o: OverlayState;
+  room: Room;
+  mine: number;
+  onAct: (data: GameAction) => void;
+}) {
+  const spinRef = useRef<HTMLDivElement>(null);
   const [guess, setGuess] = useState('');
   const [left, setLeft] = useState(() =>
     o.endsAt ? Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000)) : 0,
@@ -73,14 +94,14 @@ function OverlayBody({ o, room, mine, onAct }) {
 
   useEffect(() => {
     if (o.type !== 'chosung' || !o.endsAt) return undefined;
-    const tick = () => setLeft(Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000)));
+    const tick = () => setLeft(Math.max(0, Math.ceil((o.endsAt! - Date.now()) / 1000)));
     tick();
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [o.type, o.endsAt]);
 
   if (['finish', 'lap', 'skip', 'move-tile', 'minigame-intro'].includes(o.type)) {
-    const op =
+    const op: GameAction['op'] =
       o.type === 'finish'
         ? 'finish'
         : o.type === 'lap'
@@ -105,7 +126,7 @@ function OverlayBody({ o, room, mine, onAct }) {
         <h2 className="event-title">{o.title}</h2>
         <p className="event-desc">{o.desc}</p>
         {mine === o.actor ? (
-          <button className="btn btn-primary" onClick={() => onAct({ op })}>{label}</button>
+          <button className="btn btn-primary" onClick={() => onAct({ op } as GameAction)}>{label}</button>
         ) : (
           <ActorWait name={playerName(room, o.actor)} />
         )}
@@ -121,7 +142,7 @@ function OverlayBody({ o, room, mine, onAct }) {
         <p className="event-desc">{o.desc}</p>
         {mine === o.actor ? (
           <div className="pick-grid">
-            {o.ids.map((i) => (
+            {(o.ids ?? []).map((i) => (
               <button
                 key={i}
                 className="pick"
@@ -203,10 +224,10 @@ function OverlayBody({ o, room, mine, onAct }) {
   if (o.type === 'spin-player' || o.type === 'spin-roulette') {
     const items =
       o.type === 'spin-player'
-        ? o.loop.map((x, i) => (
+        ? ((o.loop ?? []) as SpinItem[]).map((x, i) => (
             <div className="spin-item" style={{ color: x.color }} key={i}>{x.name}</div>
           ))
-        : o.loop.map((p, i) => (
+        : ((o.loop ?? []) as RoulettePrize[]).map((p, i) => (
             <div className="spin-item" key={i}>{p.emoji} {p.label}</div>
           ));
     return (
@@ -237,7 +258,7 @@ function OverlayBody({ o, room, mine, onAct }) {
                 <button
                   key={k}
                   className="btn btn-gold"
-                  disabled={o.n + k > 31}
+                  disabled={(o.n ?? 0) + k > 31}
                   onClick={() => onAct({ op: 'baskin', k })}
                 >
                   +{k}
@@ -259,7 +280,7 @@ function OverlayBody({ o, room, mine, onAct }) {
         <h2 className="event-title">눈치게임</h2>
         <div className="mini-stage">
           <div className="big-num">{o.n}</div>
-          <p className="mini-help">다음 숫자는 {o.n + 1} · 마지막 {o.last}을 말한 사람이 마십니다</p>
+          <p className="mini-help">다음 숫자는 {(o.n ?? 0) + 1} · 마지막 {o.last}을 말한 사람이 마십니다</p>
           <button className="btn btn-gold" onClick={() => onAct({ op: 'nunchi' })}>내가 외친다</button>
         </div>
       </>
@@ -307,6 +328,7 @@ function OverlayBody({ o, room, mine, onAct }) {
   }
 
   if (o.type === 'bomb') {
+    const holder = o.holder ?? 0;
     return (
       <>
         <div className="handle" />
@@ -315,9 +337,9 @@ function OverlayBody({ o, room, mine, onAct }) {
           <div className="bomb-pulse">💣</div>
           <p className="mini-help">
             지금 폭탄:{' '}
-            <b style={{ color: room.players[o.holder].color }}>{playerName(room, o.holder)}</b>
+            <b style={{ color: room.players[holder].color }}>{playerName(room, holder)}</b>
           </p>
-          {mine === o.holder ? (
+          {mine === holder ? (
             <button className="btn btn-primary" onClick={() => onAct({ op: 'bomb-pass' })}>
               다음 사람한테 넘기기
             </button>
@@ -353,13 +375,15 @@ function OverlayBody({ o, room, mine, onAct }) {
 
   if (o.type === 'rps') {
     const chosen = o.chosen || [];
+    const a = o.a ?? 0;
+    const b = o.b ?? 0;
     const myPick = chosen.includes(mine);
-    const playing = mine === o.a || mine === o.b;
+    const playing = mine === a || mine === b;
     return (
       <>
         <div className="handle" />
         <h2 className="event-title" style={{ fontSize: 26 }}>
-          {playerName(room, o.a)} vs {playerName(room, o.b)}
+          {playerName(room, a)} vs {playerName(room, b)}
         </h2>
         <p className="event-desc">{playing ? (myPick ? '상대를 기다리는 중' : '가위바위보') : '대결 중'}</p>
         {playing && !myPick ? (
@@ -370,8 +394,8 @@ function OverlayBody({ o, room, mine, onAct }) {
           </div>
         ) : (
           <p className="wait-copy">
-            {room.players[o.a].name} {chosen.includes(o.a) ? '✓' : '...'} / {room.players[o.b].name}{' '}
-            {chosen.includes(o.b) ? '✓' : '...'}
+            {room.players[a].name} {chosen.includes(a) ? '✓' : '...'} / {room.players[b].name}{' '}
+            {chosen.includes(b) ? '✓' : '...'}
           </p>
         )}
       </>

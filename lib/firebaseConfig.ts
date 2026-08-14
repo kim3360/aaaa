@@ -1,3 +1,5 @@
+import type { FirebaseConfig } from './types';
+
 // 이 파일은 게임을 켜는 사람만 한 번 채우면 됩니다.
 // 다른 플레이어는 Firebase 로그인/가입이 필요 없습니다.
 //
@@ -6,7 +8,7 @@
 // 3. 톱니바퀴 → 프로젝트 설정 → 내 앱 → 웹 앱
 // 4. firebaseConfig 값을 아래에 붙여넣기
 
-export const firebaseConfig = {
+export const firebaseConfig: FirebaseConfig = {
   apiKey: '',
   authDomain: '',
   databaseURL: '',

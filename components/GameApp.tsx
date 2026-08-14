@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Overlay from './Overlay';
 import { TILES, tileGridPosition } from '@/lib/data';
@@ -13,6 +13,7 @@ import {
   subscribeRoom,
   touchPlayer,
   transactRoom,
+  type RoomMutator,
 } from '@/lib/db';
 import {
   applyAct,
@@ -22,11 +23,14 @@ import {
   startPendingMove,
   stepMove,
 } from '@/lib/logic';
+import type { GameAction, Player, Room, Screen } from '@/lib/types';
 
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+function sleep(ms: number) {
+  return new Promise<void>((r) => {
+    setTimeout(r, ms);
+  });
 }
 
 function buzz(ms = 18) {
@@ -52,28 +56,32 @@ function playDiceSound() {
   }
 }
 
-function isOnline(p) {
+function isOnline(p: Player) {
   return Date.now() - (p.lastSeen || 0) < 25000;
+}
+
+function errMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
 }
 
 export default function GameApp() {
   const searchParams = useSearchParams();
-  const [screen, setScreen] = useState('home');
+  const [screen, setScreen] = useState<Screen>('home');
   const [name, setName] = useState('');
   const [code, setCode] = useState((searchParams.get('room') || '').toUpperCase());
   const [playerId, setPlayerId] = useState('');
-  const [room, setRoom] = useState(null);
+  const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState('');
   const [showStats, setShowStats] = useState(false);
   const [showSetup, setShowSetup] = useState(() => !loadConfig());
   const [diceFace, setDiceFace] = useState(1);
 
-  const roomRef = useRef(null);
+  const roomRef = useRef<Room | null>(null);
   const playerIdRef = useRef('');
-  const unsubRef = useRef(null);
+  const unsubRef = useRef<(() => void) | null>(null);
   const moveLock = useRef(false);
   const armedUntil = useRef(0);
-  const diceTimer = useRef(null);
+  const diceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   roomRef.current = room;
   playerIdRef.current = playerId;
@@ -90,7 +98,7 @@ export default function GameApp() {
     sessionStorage.removeItem('juru-code');
   };
 
-  const saveSession = (nextRoom, nextId) => {
+  const saveSession = (nextRoom: Room, nextId: string) => {
     if (!nextRoom) return;
     sessionStorage.setItem('juru-id', nextId);
     sessionStorage.setItem('juru-code', nextRoom.code);
@@ -113,7 +121,7 @@ export default function GameApp() {
   }, []);
 
   const applyRoom = useCallback(
-    (next) => {
+    (next: Room | null) => {
       if (!next) {
         if (roomRef.current) {
           clearSession();
@@ -137,7 +145,7 @@ export default function GameApp() {
   );
 
   const watch = useCallback(
-    (roomCode) => {
+    (roomCode: string) => {
       unsubRef.current?.();
       unsubRef.current = subscribeRoom(roomCode, applyRoom);
     },
@@ -166,7 +174,11 @@ export default function GameApp() {
     };
   }, [bootDb, watch, stopDiceAnim]);
 
-  const commit = (mutator) => transactRoom(roomRef.current.code, mutator);
+  const commit = (mutator: RoomMutator) => {
+    const current = roomRef.current;
+    if (!current) return Promise.reject(new Error('방이 없습니다'));
+    return transactRoom(current.code, mutator);
+  };
 
   const runSteps = async () => {
     if (moveLock.current) return;
@@ -184,13 +196,13 @@ export default function GameApp() {
     }
   };
 
-  const act = async (data) => {
+  const act = async (data: GameAction) => {
     try {
       const next = await commit((r) => applyAct(r, findPlayer(r, playerIdRef.current), data));
       if (data.op === 'do-move' && next?.pending?.kind === 'move') await runSteps();
     } catch (err) {
       if (!['spin-done', 'bomb-explode', 'chosung-timeout'].includes(data.op)) {
-        setError(err.message || '지금은 할 수 없습니다');
+        setError(errMessage(err, '지금은 할 수 없습니다'));
       }
     }
   };
@@ -201,7 +213,7 @@ export default function GameApp() {
     const until = o.until || o.explodeAt || o.endsAt;
     if (!until || until === armedUntil.current) return undefined;
     armedUntil.current = until;
-    const op =
+    const op: GameAction['op'] | null =
       o.type === 'bomb'
         ? 'bomb-explode'
         : o.type === 'chosung'
@@ -210,7 +222,7 @@ export default function GameApp() {
             ? 'spin-done'
             : null;
     if (!op) return undefined;
-    const id = setTimeout(() => act({ op }), Math.max(0, until - Date.now()));
+    const id = setTimeout(() => act({ op } as GameAction), Math.max(0, until - Date.now()));
     return () => clearTimeout(id);
   }, [room?.overlay]);
 
@@ -223,7 +235,7 @@ export default function GameApp() {
         await runSteps();
       }
     } catch (err) {
-      setError(err.message || '지금은 굴릴 수 없습니다');
+      setError(errMessage(err, '지금은 굴릴 수 없습니다'));
     }
   };
 
@@ -244,7 +256,7 @@ export default function GameApp() {
       watch(result.room.code);
       applyRoom(result.room);
     } catch (err) {
-      setError(err.message);
+      setError(errMessage(err, '방을 만들지 못했습니다'));
     }
   };
 
@@ -269,7 +281,7 @@ export default function GameApp() {
       watch(result.room.code);
       applyRoom(result.room);
     } catch (err) {
-      setError(err.message);
+      setError(errMessage(err, '참가하지 못했습니다'));
     }
   };
 
@@ -307,7 +319,7 @@ export default function GameApp() {
           <li>Build → Realtime Database → 만들기 → 테스트 모드</li>
           <li>톱니바퀴 → 프로젝트 설정 → 내 앱 → 웹 앱 추가</li>
           <li>
-            <code>lib/firebaseConfig.js</code>에 firebaseConfig 값을 붙여넣기
+            <code>lib/firebaseConfig.ts</code>에 firebaseConfig 값을 붙여넣기
           </li>
           <li>저장한 뒤 이 페이지를 새로고침</li>
         </ol>
@@ -395,7 +407,7 @@ export default function GameApp() {
         <p className="sub-copy">같은 주소로 들어와 코드만 입력하면 됩니다</p>
         <div className="lobby-list">
           {room.players.map((p) => (
-            <div className="player-row" style={{ '--seat': p.color }} key={p.id}>
+            <div className="player-row" style={{ '--seat': p.color } as CSSProperties} key={p.id}>
               <span className="seat">{p.id === room.hostId ? '방' : '입'}</span>
               <span className="lobby-name">{p.name}{p.id === playerId ? ' · 나' : ''}</span>
               <span className={`online ${isOnline(p) ? 'on' : ''}`}>{isOnline(p) ? '접속' : '끊김'}</span>
@@ -407,7 +419,7 @@ export default function GameApp() {
           <button
             className="btn btn-primary"
             disabled={room.players.length < 2}
-            onClick={() => commit((r) => startGame(r, playerIdRef.current)).catch((err) => setError(err.message))}
+            onClick={() => commit((r) => startGame(r, playerIdRef.current)).catch((err) => setError(errMessage(err, '시작할 수 없습니다')))}
           >
             게임 시작
           </button>
@@ -443,7 +455,7 @@ export default function GameApp() {
               const pos = tileGridPosition(tile.id);
               const here = positions.map((p, i) => (p === tile.id ? i : -1)).filter((i) => i >= 0);
               const active = here.includes(room.current) ? 'active' : '';
-              const heavy = tile.amount >= 3 ? 'tile--heavy' : '';
+              const heavy = (tile.amount ?? 0) >= 3 ? 'tile--heavy' : '';
               return (
                 <div
                   key={tile.id}

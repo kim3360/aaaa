@@ -1,6 +1,8 @@
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
 import './globals.css';
 
-export const metadata = {
+export const metadata: Metadata = {
   title: '주루마블',
   description: '걸리면 마시는 술자리 보드게임',
   appleWebApp: {
@@ -15,7 +17,7 @@ export const metadata = {
   manifest: '/manifest.json',
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -24,12 +26,12 @@ export const viewport = {
   themeColor: '#1a140c',
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;500;700;900&display=swap"
           rel="stylesheet"

@@ -5,10 +5,11 @@ import {
   ROULETTE_PRIZES,
   CHOSUNG_ROUNDS,
 } from './data';
+import type { GameAction, MiniState, OverlayState, Player, Room, RoulettePrize, Tile } from './types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
-export function rand(n) {
+export function rand(n: number) {
   return Math.floor(Math.random() * n);
 }
 
@@ -18,7 +19,7 @@ export function makeCode() {
   return code;
 }
 
-export function makePlayer(name, index, id = crypto.randomUUID()) {
+export function makePlayer(name: string, index: number, id = crypto.randomUUID()): Player {
   return {
     id,
     name: String(name || '').trim().slice(0, 8) || `플레이어 ${index + 1}`,
@@ -31,7 +32,7 @@ export function makePlayer(name, index, id = crypto.randomUUID()) {
   };
 }
 
-export function emptyRoom(code, host) {
+export function emptyRoom(code: string, host: Player): Room {
   return {
     code,
     hostId: host.id,
@@ -47,54 +48,56 @@ export function emptyRoom(code, host) {
   };
 }
 
-export function normalizeRoom(raw) {
-  if (!raw) return null;
-  const room = { ...raw };
-  room.players = toArray(raw.players);
+export function normalizeRoom(raw: unknown): Room | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const data = raw as Record<string, unknown>;
+  const room = { ...data } as Room;
+  room.players = toArray(data.players) as Player[];
   if (room.overlay) {
     room.overlay = { ...room.overlay };
     if (room.overlay.ids) room.overlay.ids = toArray(room.overlay.ids).map(Number);
-    if (room.overlay.loop) room.overlay.loop = toArray(room.overlay.loop);
+    if (room.overlay.loop) room.overlay.loop = toArray(room.overlay.loop) as OverlayState['loop'];
     if (room.overlay.chosen) room.overlay.chosen = toArray(room.overlay.chosen).map(Number);
   } else {
     room.overlay = null;
   }
-  room.mini = raw.mini || null;
-  room.pending = raw.pending || null;
+  room.mini = (data.mini as MiniState) || null;
+  room.pending = (data.pending as Room['pending']) || null;
   room.rolling = !!room.rolling;
   room.moving = !!room.moving;
   return room;
 }
 
-function toArray(value) {
+function toArray(value: unknown): unknown[] {
   if (!value) return [];
   if (Array.isArray(value)) return value.filter(Boolean);
-  return Object.values(value);
+  if (typeof value === 'object') return Object.values(value);
+  return [];
 }
 
-export function findPlayer(room, playerId) {
+export function findPlayer(room: Room, playerId: string) {
   return room.players.findIndex((p) => p.id === playerId);
 }
 
-function pname(room, i) {
+function pname(room: Room, i: number) {
   return room.players[i]?.name || `플레이어 ${i + 1}`;
 }
 
-function others(room, except) {
+function others(room: Room, except: number) {
   return room.players.map((_, i) => i).filter((i) => i !== except);
 }
 
-function addDrinks(room, index, amount) {
+function addDrinks(room: Room, index: number, amount = 0) {
   if (amount > 0) room.players[index].drinks += amount;
 }
 
-function addAllDrinks(room, amount, except = null) {
+function addAllDrinks(room: Room, amount = 0, except: number | null = null) {
   room.players.forEach((_, i) => {
     if (i !== except) addDrinks(room, i, amount);
   });
 }
 
-function finishTurn(room, message) {
+function finishTurn(room: Room, message: string) {
   room.overlay = {
     type: 'finish',
     emoji: '🍻',
@@ -106,18 +109,25 @@ function finishTurn(room, message) {
   room.pending = null;
 }
 
-function setPick(room, title, desc, ids, kind, extra = null) {
+function setPick(
+  room: Room,
+  title: string,
+  desc: string,
+  ids: number[],
+  kind: string,
+  extra: number | string | null = null,
+) {
   room.overlay = { type: 'pick', title, desc, ids, kind, extra, actor: room.current };
 }
 
-function nextTurn(room) {
+function nextTurn(room: Room) {
   room.overlay = null;
   room.mini = null;
   room.pending = null;
   room.current = (room.current + 1) % room.players.length;
 }
 
-function shuffle(list) {
+function shuffle<T>(list: T[]) {
   const copy = [...list];
   for (let i = copy.length - 1; i > 0; i -= 1) {
     const j = rand(i + 1);
@@ -126,7 +136,7 @@ function shuffle(list) {
   return copy;
 }
 
-function startRandomMinigame(room) {
+function startRandomMinigame(room: Room) {
   const game = MINIGAMES[rand(MINIGAMES.length)];
   room.overlay = {
     type: 'minigame-intro',
@@ -138,7 +148,7 @@ function startRandomMinigame(room) {
   };
 }
 
-function startSpinPlayer(room) {
+function startSpinPlayer(room: Room) {
   const ids = room.players.map((_, i) => i);
   const winner = ids[rand(ids.length)];
   const loop = [...ids, ...ids, ...ids, winner];
@@ -150,7 +160,7 @@ function startSpinPlayer(room) {
   };
 }
 
-function startSpinRoulette(room) {
+function startSpinRoulette(room: Room) {
   const prize = ROULETTE_PRIZES[rand(ROULETTE_PRIZES.length)];
   const loop = shuffle([...ROULETTE_PRIZES, ...ROULETTE_PRIZES]);
   loop.push(prize);
@@ -162,7 +172,7 @@ function startSpinRoulette(room) {
   };
 }
 
-function applyPrize(room, prize) {
+function applyPrize(room: Room, prize: RoulettePrize) {
   const me = room.current;
   if (prize.type === 'drink') {
     addDrinks(room, me, prize.amount);
@@ -175,7 +185,7 @@ function applyPrize(room, prize) {
   } else if (prize.type === 'blackknight') {
     setPick(room, '흑기사', '대신 마실 사람', others(room, me), 'knight-2');
   } else if (prize.type === 'point') {
-    setPick(room, '지정', `${prize.amount}잔 선물`, others(room, me), 'point', prize.amount);
+    setPick(room, '지정', `${prize.amount}잔 선물`, others(room, me), 'point', prize.amount ?? 1);
   } else if (prize.type === 'water') {
     finishTurn(room, '대박. 물 원샷으로 생존');
   } else if (prize.type === 'minigame') {
@@ -183,7 +193,7 @@ function applyPrize(room, prize) {
   }
 }
 
-export function resolveTile(room, tile) {
+export function resolveTile(room: Room, tile: Tile) {
   const me = room.current;
   switch (tile.type) {
     case 'start':
@@ -198,7 +208,7 @@ export function resolveTile(room, tile) {
       finishTurn(room, `전원 ${tile.amount}잔! 원샷`);
       break;
     case 'point':
-      setPick(room, '누구 마실래', `${tile.amount}잔을 떠넘길 사람을 고르세요`, others(room, me), 'point', tile.amount);
+      setPick(room, '누구 마실래', `${tile.amount}잔을 떠넘길 사람을 고르세요`, others(room, me), 'point', tile.amount ?? 1);
       break;
     case 'blackknight':
       room.overlay = {
@@ -248,7 +258,7 @@ export function resolveTile(room, tile) {
   }
 }
 
-function runMinigame(room, id) {
+function runMinigame(room: Room, id: string) {
   if (id === 'baskin') {
     room.mini = { id, n: 0, turn: room.current };
     room.overlay = { type: 'baskin', n: 0, turn: room.current };
@@ -288,10 +298,10 @@ function runMinigame(room, id) {
   }
 }
 
-function handlePick(room, index) {
+function handlePick(room: Room, index: number) {
   const overlay = room.overlay;
   if (!overlay || overlay.type !== 'pick') return;
-  if (!overlay.ids.includes(index)) return;
+  if (!overlay.ids?.includes(index)) return;
   const kind = overlay.kind;
   const amount = Number(overlay.extra) || 1;
   if (kind === 'point') {
@@ -316,7 +326,7 @@ function handlePick(room, index) {
   }
 }
 
-export function beginRoll(room, playerIndex) {
+export function beginRoll(room: Room, playerIndex: number) {
   if (room.phase !== 'playing' || room.rolling || room.moving || room.overlay) return;
   if (playerIndex !== room.current) return;
   const me = room.players[playerIndex];
@@ -336,7 +346,7 @@ export function beginRoll(room, playerIndex) {
   return room;
 }
 
-export function startPendingMove(room) {
+export function startPendingMove(room: Room) {
   if (!room.pending || room.pending.kind !== 'move') return;
   room.rolling = false;
   room.moving = true;
@@ -344,7 +354,7 @@ export function startPendingMove(room) {
   return room;
 }
 
-export function stepMove(room) {
+export function stepMove(room: Room) {
   const pending = room.pending;
   if (!pending || pending.kind !== 'move') return;
   const player = room.players[pending.player];
@@ -371,23 +381,26 @@ export function stepMove(room) {
   return room;
 }
 
-export function applyAct(room, playerIndex, data) {
+export function applyAct(room: Room, playerIndex: number, data: GameAction) {
   const op = data?.op;
   const overlay = room.overlay;
   if (op === 'spin-done') {
     if (overlay?.type === 'spin-player') {
+      if (overlay.winner == null) return;
       addDrinks(room, overlay.winner, 1);
       finishTurn(room, `운명의 원샷: ${pname(room, overlay.winner)}`);
       return room;
     }
     if (overlay?.type === 'spin-roulette') {
+      if (!overlay.prize) return;
       applyPrize(room, overlay.prize);
       return room;
     }
     return;
   }
   if (op === 'bomb-explode') {
-    if (overlay?.type !== 'bomb' || room.mini?.exploded) return;
+    if (overlay?.type !== 'bomb' || !room.mini || room.mini.exploded) return;
+    if (overlay.holder == null) return;
     room.mini.exploded = true;
     addDrinks(room, overlay.holder, 2);
     finishTurn(room, `펑! ${pname(room, overlay.holder)} 폭탄 2잔`);
@@ -430,37 +443,40 @@ export function applyAct(room, playerIndex, data) {
       finishTurn(room, `${pname(room, playerIndex)} 음치 인증. 2잔`);
     }
   } else if (op === 'do-move' && overlay.type === 'move-tile' && playerIndex === overlay.actor) {
-    room.pending = { kind: 'move', player: playerIndex, steps: overlay.steps, trigger: true };
+    room.pending = { kind: 'move', player: playerIndex, steps: overlay.steps ?? 0, trigger: true };
     room.rolling = false;
     room.moving = true;
     room.overlay = null;
   } else if (op === 'start-minigame' && overlay.type === 'minigame-intro' && playerIndex === overlay.actor) {
-    runMinigame(room, overlay.gameId);
+    runMinigame(room, overlay.gameId ?? 'death');
   } else if (op === 'baskin' && overlay.type === 'baskin' && playerIndex === overlay.turn) {
     const k = Number(data.k);
-    if (![1, 2, 3].includes(k) || overlay.n + k > 31) return;
-    const n = overlay.n + k;
+    const n0 = overlay.n ?? 0;
+    if (![1, 2, 3].includes(k) || n0 + k > 31) return;
+    const n = n0 + k;
     if (n >= 31) {
       addDrinks(room, playerIndex, 1);
       finishTurn(room, `${pname(room, playerIndex)} 31! 1잔`);
     } else {
-      const turn = (overlay.turn + 1) % room.players.length;
+      const turn = ((overlay.turn ?? 0) + 1) % room.players.length;
       room.mini = { id: 'baskin', n, turn };
       room.overlay = { type: 'baskin', n, turn };
     }
   } else if (op === 'nunchi' && overlay.type === 'nunchi') {
-    const n = overlay.n + 1;
-    if (n >= overlay.last) {
+    const n = (overlay.n ?? 0) + 1;
+    const last = overlay.last ?? 0;
+    if (n >= last) {
       addDrinks(room, playerIndex, 1);
-      finishTurn(room, `${pname(room, playerIndex)}가 ${overlay.last}! 눈치 실패 1잔`);
+      finishTurn(room, `${pname(room, playerIndex)}가 ${last}! 눈치 실패 1잔`);
     } else {
-      room.mini = { ...(room.mini || {}), n };
+      room.mini = { ...(room.mini || { id: 'nunchi' }), n };
       room.overlay = { ...overlay, n };
     }
   } else if (op === 'updown' && overlay.type === 'updown' && playerIndex === overlay.turn) {
     const g = Number(data.guess);
     if (!g || g < 1 || g > 30) return;
     const mini = room.mini;
+    if (!mini || mini.secret == null || mini.low == null || mini.high == null || mini.turn == null) return;
     if (g === mini.secret) {
       setPick(room, '정답! 지목 1잔', `${pname(room, playerIndex)} 맞혔습니다`, others(room, playerIndex), 'updown-point');
     } else {
@@ -477,8 +493,8 @@ export function applyAct(room, playerIndex, data) {
       };
     }
   } else if (op === 'bomb-pass' && overlay.type === 'bomb' && playerIndex === overlay.holder) {
-    if (room.mini?.exploded) return;
-    const holder = (overlay.holder + 1) % room.players.length;
+    if (!room.mini || room.mini.exploded) return;
+    const holder = ((overlay.holder ?? 0) + 1) % room.players.length;
     room.mini.holder = holder;
     room.overlay = { ...overlay, holder };
   } else if (op === 'chosung' && overlay.type === 'chosung' && playerIndex === overlay.actor) {
@@ -489,7 +505,9 @@ export function applyAct(room, playerIndex, data) {
     }
   } else if (op === 'rps-pick' && overlay.type === 'rps') {
     const { a, b } = overlay;
+    if (a == null || b == null) return;
     if (playerIndex !== a && playerIndex !== b) return;
+    if (!room.mini) return;
     const key = `p${playerIndex}`;
     if (!room.mini.picks) room.mini.picks = {};
     if (room.mini.picks[key] != null) return;
@@ -514,7 +532,7 @@ export function applyAct(room, playerIndex, data) {
       }
     }
   } else if (op === 'rps-again' && overlay.type === 'rps-tie' && playerIndex === overlay.actor) {
-    room.mini.picks = {};
+    if (room.mini) room.mini.picks = {};
     room.overlay = { type: 'rps', a: overlay.a, b: overlay.b, chosen: [] };
   } else {
     return;
@@ -522,14 +540,14 @@ export function applyAct(room, playerIndex, data) {
   return room;
 }
 
-export function joinInto(room, name) {
+export function joinInto(room: Room, name: string) {
   if (room.phase !== 'lobby') return '이미 시작한 방입니다';
   if (room.players.length >= 8) return '방이 가득 찼습니다';
   room.players.push(makePlayer(name, room.players.length));
   return room;
 }
 
-export function startGame(room, playerId) {
+export function startGame(room: Room, playerId: string) {
   if (room.phase !== 'lobby') return;
   if (playerId !== room.hostId) return;
   if (room.players.length < 2) return;

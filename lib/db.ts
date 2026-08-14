@@ -1,44 +1,62 @@
 'use client';
 
-import { initializeApp } from 'firebase/app';
-import { get, getDatabase, onValue, ref, remove, runTransaction, update } from 'firebase/database';
+import { initializeApp, type FirebaseApp } from 'firebase/app';
+import {
+  get,
+  getDatabase,
+  onValue,
+  ref,
+  remove,
+  runTransaction,
+  update,
+  type Database,
+} from 'firebase/database';
 import { firebaseConfig } from './firebaseConfig';
 import { emptyRoom, makeCode, makePlayer, normalizeRoom } from './logic';
+import type { FirebaseConfig, Room } from './types';
 
-let app;
-let db;
+let app: FirebaseApp | undefined;
+let db: Database | undefined;
 
-export function loadConfig() {
-  const env = {
+export type RoomMutator = (room: Room) => Room | null | undefined;
+
+export function loadConfig(): FirebaseConfig | null {
+  const env: FirebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || firebaseConfig.apiKey,
     authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
     databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || firebaseConfig.databaseURL,
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
+    messagingSenderId:
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || firebaseConfig.appId,
   };
   if (env.apiKey && env.databaseURL) return env;
   return null;
 }
 
-export function initDb(config) {
+export function initDb(config: FirebaseConfig) {
   if (db) return db;
   app = initializeApp(config);
   db = getDatabase(app);
   return db;
 }
 
-function roomRef(code) {
-  return ref(db, `rooms/${code}`);
+function requireDb() {
+  if (!db) throw new Error('DB가 연결되지 않았습니다');
+  return db;
 }
 
-function clean(value) {
+function roomRef(code: string) {
+  return ref(requireDb(), `rooms/${code}`);
+}
+
+function clean(value: unknown): unknown {
   if (value === undefined) return null;
   if (Array.isArray(value)) return value.map(clean);
   if (value && typeof value === 'object') {
-    const out = {};
-    Object.entries(value).forEach(([k, v]) => {
+    const out: Record<string, unknown> = {};
+    Object.entries(value as Record<string, unknown>).forEach(([k, v]) => {
       if (v !== undefined) out[k] = clean(v);
     });
     return out;
@@ -46,7 +64,7 @@ function clean(value) {
   return value;
 }
 
-export async function createRoom(name) {
+export async function createRoom(name: string) {
   for (let i = 0; i < 10; i += 1) {
     const code = makeCode();
     const host = makePlayer(name, 0);
@@ -56,18 +74,20 @@ export async function createRoom(name) {
       return clean(created);
     });
     if (result.committed && result.snapshot.exists()) {
-      return { playerId: host.id, room: normalizeRoom(result.snapshot.val()) };
+      const room = normalizeRoom(result.snapshot.val());
+      if (room) return { playerId: host.id, room };
     }
   }
   throw new Error('방 코드를 만들지 못했습니다. 다시 눌러주세요');
 }
 
-export async function joinRoom(code, name) {
+export async function joinRoom(code: string, name: string) {
   const key = String(code || '').trim().toUpperCase();
   const player = makePlayer(name, 0);
   const result = await runTransaction(roomRef(key), (current) => {
     if (!current) return;
     const room = normalizeRoom(current);
+    if (!room) return;
     if (room.phase !== 'lobby') return;
     if (room.players.length >= 8) return;
     room.players.push(makePlayer(name, room.players.length, player.id));
@@ -77,16 +97,19 @@ export async function joinRoom(code, name) {
     const snap = await get(roomRef(key));
     if (!snap.exists()) throw new Error('방이 없어요');
     const room = normalizeRoom(snap.val());
-    if (room.phase !== 'lobby') throw new Error('이미 시작한 방입니다');
+    if (room?.phase !== 'lobby') throw new Error('이미 시작한 방입니다');
     throw new Error('방이 가득 찼습니다');
   }
-  return { playerId: player.id, room: normalizeRoom(result.snapshot.val()) };
+  const room = normalizeRoom(result.snapshot.val());
+  if (!room) throw new Error('방이 없어요');
+  return { playerId: player.id, room };
 }
 
-export async function transactRoom(code, mutator) {
+export async function transactRoom(code: string, mutator: RoomMutator) {
   const result = await runTransaction(roomRef(code), (current) => {
     if (!current) return current;
     const room = normalizeRoom(current);
+    if (!room) return;
     const next = mutator(room);
     if (next === undefined) return;
     return next === null ? null : clean(next);
@@ -95,23 +118,24 @@ export async function transactRoom(code, mutator) {
   return normalizeRoom(result.snapshot.val());
 }
 
-export function subscribeRoom(code, onRoom) {
+export function subscribeRoom(code: string, onRoom: (room: Room | null) => void) {
   return onValue(roomRef(code), (snap) => {
     onRoom(snap.exists() ? normalizeRoom(snap.val()) : null);
   });
 }
 
-export async function deleteRoom(code) {
+export async function deleteRoom(code: string) {
   await remove(roomRef(code));
 }
 
-export async function touchPlayer(code, playerId) {
+export async function touchPlayer(code: string, playerId: string) {
   const snap = await get(roomRef(code));
   if (!snap.exists()) return;
   const room = normalizeRoom(snap.val());
+  if (!room) return;
   const index = room.players.findIndex((p) => p.id === playerId);
   if (index < 0) return;
-  await update(ref(db, `rooms/${code}/players/${index}`), {
+  await update(ref(requireDb(), `rooms/${code}/players/${index}`), {
     connected: true,
     lastSeen: Date.now(),
   });
