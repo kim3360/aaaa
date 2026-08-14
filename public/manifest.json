@@ -1,7 +1,7 @@
 {
-  "name": "주루마블",
-  "short_name": "주루마블",
-  "description": "걸리면 마시는 술자리 보드게임",
+  "name": "주루",
+  "short_name": "주루",
+  "description": "주루마블과 밸런스 게임이 있는 술자리 게임",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

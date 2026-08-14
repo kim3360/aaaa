@@ -254,7 +254,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     }
     unsubRef.current?.();
     clearSession();
-    router.push('/');
+    router.push('/marble');
   };
 
   const onRoll = async () => {
@@ -310,7 +310,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     return (
       <section className="screen join-screen">
         <div className="nav">
-          <button className="back-btn" onClick={() => router.push('/')}>←</button>
+          <button className="back-btn" onClick={() => router.push('/marble')}>←</button>
           <span className="nav-mark">방 {roomCode}</span>
         </div>
         <h1 className="title">방에 들어가기</h1>

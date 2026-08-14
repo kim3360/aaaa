@@ -204,3 +204,38 @@ export type FirebaseConfig = {
 };
 
 export type Screen = 'home' | 'lobby' | 'game';
+
+export type BalanceChoice = 'left' | 'right';
+
+export type BalanceCategoryId = 'all' | 'drink' | 'love' | 'taste' | 'extreme';
+
+export type BalanceQuestion = {
+  id: string;
+  category: Exclude<BalanceCategoryId, 'all'>;
+  left: string;
+  right: string;
+  leftEmoji: string;
+  rightEmoji: string;
+};
+
+export type BalanceResult = {
+  left: number;
+  right: number;
+  minority: BalanceChoice | 'tie';
+};
+
+export type BalanceRoom = {
+  code: string;
+  title: string;
+  hostId: string;
+  phase: 'lobby' | 'voting' | 'result';
+  maxPlayers: number;
+  players: Player[];
+  question: BalanceQuestion | null;
+  votes: Record<string, BalanceChoice>;
+  voterIds: string[];
+  usedIds: string[];
+  result: BalanceResult | null;
+  round: number;
+  category: BalanceCategoryId;
+};

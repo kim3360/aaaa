@@ -1,5 +1,5 @@
-import HomeClient from '@/components/HomeClient';
+import HubClient from '@/components/HubClient';
 
 export default function Page() {
-  return <HomeClient />;
+  return <HubClient />;
 }

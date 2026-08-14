@@ -156,6 +156,7 @@ export default function HomeClient() {
     <section className="lobby-page">
       <header className="site-head">
         <div className="brand-lockup">
+          <button className="back-btn" type="button" onClick={() => router.push('/')} aria-label="게임 목록">←</button>
           <span className="logo" aria-hidden>🍺</span>
           <div>
             <strong className="brand">주루마블</strong>

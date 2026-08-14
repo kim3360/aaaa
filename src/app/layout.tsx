@@ -3,11 +3,11 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '주루마블',
-  description: '걸리면 마시는 술자리 보드게임',
+  title: '주루',
+  description: '주루마블과 밸런스 게임이 있는 술자리 게임',
   appleWebApp: {
     capable: true,
-    title: '주루마블',
+    title: '주루',
     statusBarStyle: 'default',
   },
   icons: {
