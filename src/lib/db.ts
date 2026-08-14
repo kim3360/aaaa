@@ -11,7 +11,6 @@ import {
   update,
   type Database,
 } from 'firebase/database';
-import { firebaseConfig } from './firebaseConfig';
 import { emptyRoom, makeCode, makePlayer, normalizeRoom } from './logic';
 import type { FirebaseConfig, Room } from './types';
 
@@ -22,14 +21,13 @@ export type RoomMutator = (room: Room) => Room | null | undefined;
 
 export function loadConfig(): FirebaseConfig | null {
   const env: FirebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || firebaseConfig.apiKey,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || firebaseConfig.authDomain,
-    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || firebaseConfig.databaseURL,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || firebaseConfig.projectId,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
-    messagingSenderId:
-      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || firebaseConfig.appId,
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY?.trim() || '',
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN?.trim() || '',
+    databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL?.trim() || '',
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID?.trim() || '',
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || '',
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || '',
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || '',
   };
   if (env.apiKey && env.databaseURL) return env;
   return null;

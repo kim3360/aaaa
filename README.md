@@ -5,6 +5,7 @@ Next.js로 만든 술자리 보드게임입니다. 방 데이터는 **Firebase �
 ## 시작
 
 ```bash
+cp .env.example .env.local
 npm install
 npm run dev
 ```
@@ -14,8 +15,8 @@ npm run dev
 1. [Firebase 콘솔](https://console.firebase.google.com)에서 프로젝트 만들기
 2. **Build → Realtime Database → 만들기 → 테스트 모드**
 3. 톱니바퀴 → 프로젝트 설정 → 내 앱 → 웹 앱 추가
-4. `lib/firebaseConfig.ts`에 값을 붙여넣고 저장
-5. `npm run dev` 후 주소를 공유
+4. `firebaseConfig` 값을 `.env.local`에 넣고 개발 서버 재시작
+5. 주소를 공유
 
 같은 와이파이가 아니어도, 주소와 방 코드만 있으면 참가할 수 있습니다.
 

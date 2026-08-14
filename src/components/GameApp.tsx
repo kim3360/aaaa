@@ -73,11 +73,13 @@ export default function GameApp() {
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState('');
   const [showStats, setShowStats] = useState(false);
-  const [showSetup, setShowSetup] = useState(() => !loadConfig());
+  const [showSetup, setShowSetup] = useState(false);
+  const [ready, setReady] = useState(false);
   const [diceFace, setDiceFace] = useState(1);
 
   const roomRef = useRef<Room | null>(null);
   const playerIdRef = useRef('');
+  const nameRef = useRef('');
   const unsubRef = useRef<(() => void) | null>(null);
   const moveLock = useRef(false);
   const armedUntil = useRef(0);
@@ -85,6 +87,7 @@ export default function GameApp() {
 
   roomRef.current = room;
   playerIdRef.current = playerId;
+  nameRef.current = name;
 
   const bootDb = useCallback(() => {
     const config = loadConfig();
@@ -102,7 +105,7 @@ export default function GameApp() {
     if (!nextRoom) return;
     sessionStorage.setItem('juru-id', nextId);
     sessionStorage.setItem('juru-code', nextRoom.code);
-    localStorage.setItem('juru-name', name);
+    localStorage.setItem('juru-name', nameRef.current);
   };
 
   const startDiceAnim = useCallback(() => {
@@ -141,7 +144,7 @@ export default function GameApp() {
         setDiceFace(next.lastDice);
       }
     },
-    [startDiceAnim, stopDiceAnim, name],
+    [startDiceAnim, stopDiceAnim],
   );
 
   const watch = useCallback(
@@ -154,7 +157,13 @@ export default function GameApp() {
 
   useEffect(() => {
     setName(localStorage.getItem('juru-name') || '');
-    if (!bootDb()) return undefined;
+  }, []);
+
+  useEffect(() => {
+    const ok = bootDb();
+    setShowSetup(!ok);
+    setReady(true);
+    if (!ok) return undefined;
     const savedCode = sessionStorage.getItem('juru-code');
     const savedId = sessionStorage.getItem('juru-id');
     if (savedCode && savedId) {
@@ -302,6 +311,10 @@ export default function GameApp() {
     setScreen('home');
   };
 
+  if (!ready) {
+    return <section className="screen home" />;
+  }
+
   if (showSetup) {
     return (
       <section className="screen">
@@ -319,14 +332,14 @@ export default function GameApp() {
           <li>Build → Realtime Database → 만들기 → 테스트 모드</li>
           <li>톱니바퀴 → 프로젝트 설정 → 내 앱 → 웹 앱 추가</li>
           <li>
-            <code>lib/firebaseConfig.ts</code>에 firebaseConfig 값을 붙여넣기
+            <code>.env.example</code>을 복사해 <code>.env.local</code>을 만들고 firebaseConfig 값을 넣기
           </li>
-          <li>저장한 뒤 이 페이지를 새로고침</li>
+          <li>개발 서버를 재시작한 뒤 이 페이지를 새로고침</li>
         </ol>
         <p className="sub-copy" style={{ textAlign: 'left' }}>
           설정이 들어가면 다른 사람은 주소만 열고 이름 적은 다음 방에 들어오면 됩니다.
         </p>
-        <button className="btn btn-gold" onClick={() => location.reload()}>설정 넣고 새로고침</button>
+        <button className="btn btn-gold" onClick={() => location.reload()}>서버 재시작 후 새로고침</button>
       </section>
     );
   }

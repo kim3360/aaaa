@@ -38,6 +38,13 @@ input {
   font-family: inherit;
 }
 
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+}
+
 .phone-frame {
   height: 100dvh;
   display: flex;
