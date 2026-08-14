@@ -412,7 +412,9 @@ function OverlayBody({
         </div>
         {mine === speaker ? (
           <div className="btn-row">
-            <button className="btn btn-soju" onClick={() => onAct({ op: 'subway', ok: true })}>성공 · 다음</button>
+            <button className="btn btn-soju" onClick={() => onAct({ op: 'subway', ok: true })}>
+              {room.players.length <= 1 ? '성공' : '성공 · 다음'}
+            </button>
             <button className="btn btn-primary" onClick={() => onAct({ op: 'subway', ok: false })}>실패</button>
           </div>
         ) : (

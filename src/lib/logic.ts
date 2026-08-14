@@ -623,9 +623,13 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
     room.overlay = { ...overlay, holder };
   } else if (op === 'subway' && overlay.type === 'subway' && playerIndex === overlay.turn) {
     if (data.ok) {
-      const turn = ((overlay.turn ?? 0) + 1) % room.players.length;
-      room.mini = { ...(room.mini || { id: 'subway' }), turn };
-      room.overlay = { ...overlay, turn };
+      const next = ((overlay.turn ?? 0) + 1) % room.players.length;
+      if (room.players.length <= 1) {
+        finishTurn(room, '지하철 통과. 다음으로');
+      } else {
+        room.mini = { ...(room.mini || { id: 'subway' }), turn: next };
+        room.overlay = { ...overlay, turn: next };
+      }
     } else {
       addDrinks(room, playerIndex, 1);
       finishTurn(room, `${pname(room, playerIndex)} 지하철 실패. 1잔`);
