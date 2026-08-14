@@ -1,0 +1,403 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+
+function ActorWait({ name }) {
+  return <p className="wait-copy">{name}가 선택하는 중</p>;
+}
+
+function playerName(room, i) {
+  return room.players[i]?.name || `플레이어 ${i + 1}`;
+}
+
+export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseStats, onEndGame }) {
+  if (showStats) {
+    const ranked = [...room.players].sort((a, b) => b.drinks - a.drinks);
+    return (
+      <div className="overlay">
+        <div className="sheet">
+          <div className="handle" />
+          <h2 className="event-title" style={{ fontSize: 26 }}>주량 현황</h2>
+          <p className="event-desc">많이 마신 사람일수록 오늘의 주인공</p>
+          <div className="stats-sheet">
+            {ranked.map((p, idx) => (
+              <div className="stat-line" key={p.id}>
+                <span className="rank">{idx + 1}</span>
+                <span className="dot" style={{ background: p.color }} />
+                <b style={{ color: p.color }}>{p.name}</b>
+                <span className="drinks">{p.drinks}잔</span>
+              </div>
+            ))}
+          </div>
+          <div className="btn-row" style={{ marginTop: 16 }}>
+            {isHost ? (
+              <button className="btn btn-ghost" onClick={onEndGame}>게임 종료</button>
+            ) : (
+              <span />
+            )}
+            <button className="btn btn-gold" onClick={onCloseStats}>닫기</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const o = room.overlay;
+  if (!o) return null;
+
+  return (
+    <div className="overlay">
+      <div className="sheet">
+        <OverlayBody o={o} room={room} mine={mine} onAct={onAct} />
+      </div>
+    </div>
+  );
+}
+
+function OverlayBody({ o, room, mine, onAct }) {
+  const spinRef = useRef(null);
+  const [guess, setGuess] = useState('');
+  const [left, setLeft] = useState(() =>
+    o.endsAt ? Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000)) : 0,
+  );
+
+  useEffect(() => {
+    const track = spinRef.current;
+    if (!track) return;
+    const n = track.children.length;
+    requestAnimationFrame(() => {
+      track.style.transition = 'transform 1.6s cubic-bezier(.15,.8,.1,1)';
+      track.style.transform = `translateY(${-54 * (n - 1)}px)`;
+    });
+  }, [o.type]);
+
+  useEffect(() => {
+    if (o.type !== 'chosung' || !o.endsAt) return undefined;
+    const tick = () => setLeft(Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [o.type, o.endsAt]);
+
+  if (['finish', 'lap', 'skip', 'move-tile', 'minigame-intro'].includes(o.type)) {
+    const op =
+      o.type === 'finish'
+        ? 'finish'
+        : o.type === 'lap'
+          ? 'lap'
+          : o.type === 'skip'
+            ? 'skip-ok'
+            : o.type === 'move-tile'
+              ? 'do-move'
+              : 'start-minigame';
+    const label =
+      o.type === 'finish' || o.type === 'skip'
+        ? '다음 턴 넘기기'
+        : o.type === 'lap'
+          ? '확인'
+          : o.type === 'move-tile'
+            ? '이동하기'
+            : '게임 시작';
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">{o.emoji || '🎲'}</div>
+        <h2 className="event-title">{o.title}</h2>
+        <p className="event-desc">{o.desc}</p>
+        {mine === o.actor ? (
+          <button className="btn btn-primary" onClick={() => onAct({ op })}>{label}</button>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'pick') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title" style={{ fontSize: 28 }}>{o.title}</h2>
+        <p className="event-desc">{o.desc}</p>
+        {mine === o.actor ? (
+          <div className="pick-grid">
+            {o.ids.map((i) => (
+              <button
+                key={i}
+                className="pick"
+                style={{ background: room.players[i].color }}
+                onClick={() => onAct({ op: 'pick', index: i })}
+              >
+                {playerName(room, i)}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'knight') {
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">🖤</div>
+        <h2 className="event-title">흑기사</h2>
+        <p className="event-desc">{o.desc}</p>
+        {mine === o.actor ? (
+          <>
+            <p className="wait-copy">다른 사람이 흑기사를 눌러주길 기다리거나</p>
+            <button className="btn btn-ghost" onClick={() => onAct({ op: 'knight-self' })}>
+              흑기사 없음 · 내가 마심
+            </button>
+          </>
+        ) : (
+          <button className="btn btn-gold" onClick={() => onAct({ op: 'knight-volunteer' })}>
+            내가 흑기사 할게
+          </button>
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'truth') {
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">🙊</div>
+        <h2 className="event-title">진실 아니면 원샷</h2>
+        <p className="event-desc">창피한 진실 하나, 아니면 원샷</p>
+        {mine === o.actor ? (
+          <div className="btn-row">
+            <button className="btn btn-gold" onClick={() => onAct({ op: 'truth', shot: false })}>진실 말할게</button>
+            <button className="btn btn-primary" onClick={() => onAct({ op: 'truth', shot: true })}>원샷 할게</button>
+          </div>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'sing') {
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">🎤</div>
+        <h2 className="event-title">노래 한 소절</h2>
+        <p className="event-desc">한 소절만 부르세요. 실패하면 2잔</p>
+        {mine === o.actor ? (
+          <div className="btn-row">
+            <button className="btn btn-soju" onClick={() => onAct({ op: 'sing', ok: true })}>성공</button>
+            <button className="btn btn-primary" onClick={() => onAct({ op: 'sing', ok: false })}>실패 · 2잔</button>
+          </div>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'spin-player' || o.type === 'spin-roulette') {
+    const items =
+      o.type === 'spin-player'
+        ? o.loop.map((x, i) => (
+            <div className="spin-item" style={{ color: x.color }} key={i}>{x.name}</div>
+          ))
+        : o.loop.map((p, i) => (
+            <div className="spin-item" key={i}>{p.emoji} {p.label}</div>
+          ));
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">{o.type === 'spin-roulette' ? '👑' : '🎯'}</div>
+        <h2 className="event-title">{o.type === 'spin-roulette' ? '황금 룰렛' : '랜덤 원샷'}</h2>
+        <p className="event-desc">운명을 뽑는 중</p>
+        <div className="spin">
+          <div className="spin-track" ref={spinRef}>{items}</div>
+        </div>
+      </>
+    );
+  }
+
+  if (o.type === 'baskin') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">베스킨 31</h2>
+        <div className="mini-stage">
+          <div className="mini-help">{playerName(room, o.turn)} 차례</div>
+          <div className="big-num">{o.n}</div>
+          <p className="mini-help">31을 말하는 사람이 마십니다</p>
+          {mine === o.turn ? (
+            <div className="btn-row">
+              {[1, 2, 3].map((k) => (
+                <button
+                  key={k}
+                  className="btn btn-gold"
+                  disabled={o.n + k > 31}
+                  onClick={() => onAct({ op: 'baskin', k })}
+                >
+                  +{k}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <ActorWait name={playerName(room, o.turn)} />
+          )}
+        </div>
+      </>
+    );
+  }
+
+  if (o.type === 'nunchi') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">눈치게임</h2>
+        <div className="mini-stage">
+          <div className="big-num">{o.n}</div>
+          <p className="mini-help">다음 숫자는 {o.n + 1} · 마지막 {o.last}을 말한 사람이 마십니다</p>
+          <button className="btn btn-gold" onClick={() => onAct({ op: 'nunchi' })}>내가 외친다</button>
+        </div>
+      </>
+    );
+  }
+
+  if (o.type === 'updown') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">업다운</h2>
+        <div className="mini-stage">
+          <p className="mini-help">{playerName(room, o.turn)} 차례 · {o.msg}</p>
+          <div className="big-num" style={{ fontSize: 40 }}>{o.low} ~ {o.high}</div>
+          {mine === o.turn ? (
+            <>
+              <input
+                type="number"
+                min="1"
+                max="30"
+                inputMode="numeric"
+                placeholder="숫자"
+                value={guess}
+                onChange={(e) => setGuess(e.target.value)}
+                style={{
+                  width: '100%',
+                  margin: '8px 0 12px',
+                  padding: 14,
+                  borderRadius: 12,
+                  border: 0,
+                  fontSize: 18,
+                  textAlign: 'center',
+                }}
+              />
+              <button className="btn btn-gold" onClick={() => onAct({ op: 'updown', guess: Number(guess) })}>
+                맞춰보기
+              </button>
+            </>
+          ) : (
+            <ActorWait name={playerName(room, o.turn)} />
+          )}
+        </div>
+      </>
+    );
+  }
+
+  if (o.type === 'bomb') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">폭탄 돌리기</h2>
+        <div className="mini-stage">
+          <div className="bomb-pulse">💣</div>
+          <p className="mini-help">
+            지금 폭탄:{' '}
+            <b style={{ color: room.players[o.holder].color }}>{playerName(room, o.holder)}</b>
+          </p>
+          {mine === o.holder ? (
+            <button className="btn btn-primary" onClick={() => onAct({ op: 'bomb-pass' })}>
+              다음 사람한테 넘기기
+            </button>
+          ) : (
+            <p className="wait-copy">폭탄이 오면 넘기세요</p>
+          )}
+        </div>
+      </>
+    );
+  }
+
+  if (o.type === 'chosung') {
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">초성 게임</h2>
+        <div className="mini-stage">
+          <p className="mini-help">카테고리: {o.hint} · {left}초</p>
+          <div className="big-num">{o.text}</div>
+          <p className="mini-help">{playerName(room, o.actor)}가 단어를 말하세요</p>
+        </div>
+        {mine === o.actor ? (
+          <div className="btn-row">
+            <button className="btn btn-soju" onClick={() => onAct({ op: 'chosung', ok: true })}>성공</button>
+            <button className="btn btn-primary" onClick={() => onAct({ op: 'chosung', ok: false })}>실패</button>
+          </div>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'rps') {
+    const chosen = o.chosen || [];
+    const myPick = chosen.includes(mine);
+    const playing = mine === o.a || mine === o.b;
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title" style={{ fontSize: 26 }}>
+          {playerName(room, o.a)} vs {playerName(room, o.b)}
+        </h2>
+        <p className="event-desc">{playing ? (myPick ? '상대를 기다리는 중' : '가위바위보') : '대결 중'}</p>
+        {playing && !myPick ? (
+          <div className="rps-row">
+            <button className="rps-btn" onClick={() => onAct({ op: 'rps-pick', v: 0 })}>✌️</button>
+            <button className="rps-btn" onClick={() => onAct({ op: 'rps-pick', v: 1 })}>✊</button>
+            <button className="rps-btn" onClick={() => onAct({ op: 'rps-pick', v: 2 })}>🖐️</button>
+          </div>
+        ) : (
+          <p className="wait-copy">
+            {room.players[o.a].name} {chosen.includes(o.a) ? '✓' : '...'} / {room.players[o.b].name}{' '}
+            {chosen.includes(o.b) ? '✓' : '...'}
+          </p>
+        )}
+      </>
+    );
+  }
+
+  if (o.type === 'rps-tie') {
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">😅</div>
+        <h2 className="event-title">무승부</h2>
+        <p className="event-desc">{o.label} vs {o.label}</p>
+        {mine === o.actor ? (
+          <button className="btn btn-gold" onClick={() => onAct({ op: 'rps-again' })}>다시</button>
+        ) : (
+          <ActorWait name={playerName(room, o.actor)} />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="handle" />
+      <p className="event-desc">진행 중</p>
+    </>
+  );
+}

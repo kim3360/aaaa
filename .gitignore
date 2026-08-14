@@ -1,5 +1,8 @@
 node_modules
+.next
 dist
 .DS_Store
 *.local
 .vscode
+.env
+.env.local
