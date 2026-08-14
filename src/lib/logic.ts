@@ -1,5 +1,6 @@
 import {
   PLAYER_COLORS,
+  PLAYER_ICONS,
   TILES,
   MINIGAMES,
   ROULETTE_PRIZES,
@@ -26,6 +27,7 @@ export function makePlayer(name: string, index: number, id = crypto.randomUUID()
     id,
     name: String(name || '').trim().slice(0, 8) || `플레이어 ${index + 1}`,
     color: PLAYER_COLORS[index % PLAYER_COLORS.length],
+    icon: PLAYER_ICONS[index % PLAYER_ICONS.length],
     drinks: 0,
     position: 0,
     skip: false,
@@ -83,6 +85,7 @@ export function normalizeRoom(raw: unknown): Room | null {
     ...p,
     team: Math.min(room.teamCount - 1, Math.max(0, Number(p.team) || 0)),
     color: p.color || PLAYER_COLORS[i % PLAYER_COLORS.length],
+    icon: p.icon || PLAYER_ICONS[i % PLAYER_ICONS.length],
   }));
   return room;
 }

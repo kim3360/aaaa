@@ -16,7 +16,7 @@ import {
   stepMove,
   teamLabel,
 } from '@/lib/logic';
-import { MAX_PLAYERS, TEAM_META, TILES, tileGridPosition } from '@/lib/data';
+import { MAX_PLAYERS, PLAYER_ICONS, TEAM_META, TILES, tileGridPosition } from '@/lib/data';
 import {
   bootDb,
   deleteRoom,
@@ -180,7 +180,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     moveLock.current = true;
     try {
       while (true) {
-        await sleep(160);
+        await sleep(780);
         const next = await commit((r) => stepMove(r));
         if (!next?.pending) break;
       }
@@ -260,7 +260,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     try {
       const next = await commit((r) => beginRoll(r, findPlayer(r, playerIdRef.current)));
       if (next?.pending?.kind === 'move') {
-        await sleep(900);
+        await sleep(700);
         await commit((r) => startPendingMove(r));
         await runSteps();
       }
@@ -410,10 +410,11 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
                 style={{ '--seat': room.mode === 'team' ? team.color : p.color } as CSSProperties}
                 key={p.id}
               >
-                <span className="seat">{p.id === room.hostId ? '방' : '입'}</span>
+                <span className="seat pawn-seat">{p.icon || PLAYER_ICONS[room.players.indexOf(p)]}</span>
                 <span className="lobby-name">
                   {room.mode === 'team' ? `${team.emoji} ` : ''}
                   {p.name}
+                  {p.id === room.hostId ? ' · 방장' : ''}
                   {p.id === playerId ? ' · 나' : ''}
                 </span>
                 {room.mode === 'team' && (host || p.id === playerId) && room.phase === 'lobby' ? (
@@ -460,7 +461,6 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   const current = room.players[room.current];
   const myTurn = mine === room.current;
   const canRoll = myTurn && !room.rolling && !room.moving && !room.overlay;
-  const positions = room.players.map((p) => p.position);
 
   if (room.phase === 'lobby') {
     return (
@@ -492,8 +492,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
           <div className="board">
             {TILES.map((tile) => {
               const pos = tileGridPosition(tile.id);
-              const here = positions.map((p, i) => (p === tile.id ? i : -1)).filter((i) => i >= 0);
-              const active = here.includes(room.current) ? 'active' : '';
+              const active = room.players[room.current]?.position === tile.id ? 'active' : '';
               const heavy = (tile.amount ?? 0) >= 3 ? 'tile--heavy' : '';
               return (
                 <div
@@ -503,26 +502,46 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
                 >
                   <span className="emoji">{tile.emoji}</span>
                   <span className="label">{tile.name}</span>
-                  <div className="tokens">
-                    {here.map((i) => (
-                      <span
-                        key={room.players[i].id}
-                        className={`token ${i === mine ? 'me' : ''}`}
-                        style={{ background: room.players[i].color }}
-                      />
-                    ))}
-                  </div>
                 </div>
               );
             })}
+            <div className="pawns-layer">
+              {room.players.map((player, i) => {
+                const { row, col } = tileGridPosition(player.position);
+                const stack = room.players.filter((p) => p.position === player.position);
+                const stackIndex = stack.findIndex((p) => p.id === player.id);
+                const ox = (stackIndex - (stack.length - 1) / 2) * 2.4;
+                const hopping = room.moving && i === room.current;
+                return (
+                  <span
+                    key={player.id}
+                    className={`pawn-float ${i === mine ? 'me' : ''} ${i === room.current ? 'turn' : ''}`}
+                    style={{
+                      '--x': `${((col - 0.5) / 7) * 100 + ox}%`,
+                      '--y': `${((row - 0.36) / 7) * 100}%`,
+                      '--pawn': player.color,
+                    } as CSSProperties}
+                    title={player.name}
+                  >
+                    <span
+                      key={`${player.id}-${player.position}-${hopping ? 'h' : 's'}`}
+                      className={`pawn ${i === mine ? 'me' : ''} ${i === room.current ? 'turn' : ''} ${hopping ? 'hop' : ''}`}
+                    >
+                      {player.icon || PLAYER_ICONS[i]}
+                    </span>
+                  </span>
+                );
+              })}
+            </div>
             <div className="center">
               <div className="turn-label">{myTurn ? '주사위를 누르세요' : '상대 턴'}</div>
               <div className="turn-name" style={{ color: current.color }}>
+                <span className="turn-icon">{current.icon || PLAYER_ICONS[room.current]}</span>
                 {room.mode === 'team' ? `${teamLabel(current.team).emoji} ` : ''}
                 {current.name}
               </div>
               <button
-                className={`dice ${room.rolling ? 'rolling' : ''}`}
+                className={`dice ${room.rolling ? 'rolling' : ''} ${canRoll ? 'ready' : ''}`}
                 disabled={!canRoll}
                 onClick={onRoll}
               >
@@ -532,7 +551,9 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
               <div className="stats">
                 {room.players.map((p) => (
                   <span className={`stat ${p.id === playerId ? 'me-stat' : ''}`} key={p.id}>
-                    <span className="dot" style={{ background: p.color }} />
+                    <span className="pawn mini" style={{ '--pawn': p.color } as CSSProperties}>
+                      {p.icon || PLAYER_ICONS[room.players.indexOf(p)]}
+                    </span>
                     {p.name}
                     {room.mode === 'team' ? teamLabel(p.team).emoji : ''}
                     <b>{p.drinks}</b>

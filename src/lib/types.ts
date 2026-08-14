@@ -49,6 +49,7 @@ export type Player = {
   id: string;
   name: string;
   color: string;
+  icon: string;
   drinks: number;
   position: number;
   skip: boolean;

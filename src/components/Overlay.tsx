@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TEAM_META } from '@/lib/data';
 import type { GameAction, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
 
@@ -64,7 +64,7 @@ export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseS
             {ranked.map((p, idx) => (
               <div className="stat-line" key={p.id}>
                 <span className="rank">{idx + 1}</span>
-                <span className="dot" style={{ background: p.color }} />
+                <span className="pawn mini" style={{ '--pawn': p.color } as CSSProperties}>{p.icon || '🙂'}</span>
                 <b style={{ color: p.color }}>
                   {room.mode === 'team' ? `${TEAM_META[p.team]?.emoji ?? ''} ` : ''}
                   {p.name}
@@ -179,9 +179,10 @@ function OverlayBody({
               <button
                 key={i}
                 className="pick"
-                style={{ background: room.players[i].color }}
+                style={{ '--pawn': room.players[i].color } as CSSProperties}
                 onClick={() => onAct({ op: 'pick', index: i })}
               >
+                <span className="pawn">{room.players[i].icon || '🙂'}</span>
                 {playerName(room, i)}
               </button>
             ))}

@@ -25,6 +25,11 @@ export const PLAYER_COLORS = [
   '#fdba74',
 ];
 
+export const PLAYER_ICONS = [
+  '🦊', '🐸', '🐱', '🐼', '🐯', '🐰', '🐻', '🐷', '🐵', '🐶',
+  '🦁', '🐮', '🐨', '🐔', '🦄', '🐙', '🐥', '🐧', '🦉', '🐲',
+];
+
 export const TEAM_META = [
   { id: 0, name: '홍팀', emoji: '🔴', color: '#ff5a7a' },
   { id: 1, name: '청팀', emoji: '🔵', color: '#5aa7ff' },
