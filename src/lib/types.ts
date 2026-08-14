@@ -142,12 +142,21 @@ export type PendingMove = {
   passedStart?: boolean;
 };
 
+export type RoomOptions = {
+  maxPlayers?: number;
+  mode?: PlayMode;
+  teamCount?: number;
+  title?: string;
+};
+
 export type Room = {
   code: string;
+  title: string;
   hostId: string;
   phase: 'lobby' | 'playing';
   mode: PlayMode;
   teamCount: number;
+  maxPlayers: number;
   players: Player[];
   current: number;
   lastDice: number;

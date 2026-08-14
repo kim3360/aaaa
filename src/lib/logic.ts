@@ -7,7 +7,7 @@ import {
   MAX_PLAYERS,
   TEAM_META,
 } from './data';
-import type { GameAction, MiniState, OverlayState, PlayMode, Player, Room, RoulettePrize, Tile } from './types';
+import type { GameAction, MiniState, OverlayState, PlayMode, Player, Room, RoomOptions, RoulettePrize, Tile } from './types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -35,14 +35,19 @@ export function makePlayer(name: string, index: number, id = crypto.randomUUID()
   };
 }
 
-export function emptyRoom(code: string, host: Player): Room {
+export function emptyRoom(code: string, host: Player, options: RoomOptions = {}): Room {
+  const maxPlayers = Math.min(MAX_PLAYERS, Math.max(1, options.maxPlayers ?? 8));
+  const mode = options.mode === 'team' ? 'team' : 'free';
+  const teamCount = Math.min(4, Math.max(2, options.teamCount ?? 2));
   return {
     code,
+    title: options.title || `${host.name}의 방`,
     hostId: host.id,
     phase: 'lobby',
-    mode: 'free',
-    teamCount: 2,
-    players: [host],
+    mode,
+    teamCount,
+    maxPlayers,
+    players: [{ ...host, team: 0 }],
     current: 0,
     lastDice: 1,
     rolling: false,
@@ -72,6 +77,8 @@ export function normalizeRoom(raw: unknown): Room | null {
   room.moving = !!room.moving;
   room.mode = room.mode === 'team' ? 'team' : 'free';
   room.teamCount = Math.min(4, Math.max(2, Number(room.teamCount) || 2));
+  room.maxPlayers = Math.min(MAX_PLAYERS, Math.max(1, Number(room.maxPlayers) || 8));
+  room.title = room.title || `${room.players[0]?.name || '주루마블'}의 방`;
   room.players = room.players.map((p, i) => ({
     ...p,
     team: Math.min(room.teamCount - 1, Math.max(0, Number(p.team) || 0)),
@@ -623,7 +630,7 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
 
 export function joinInto(room: Room, name: string) {
   if (room.phase !== 'lobby') return '이미 시작한 방입니다';
-  if (room.players.length >= MAX_PLAYERS) return '방이 가득 찼습니다';
+  if (room.players.length >= (room.maxPlayers || MAX_PLAYERS)) return '방이 가득 찼습니다';
   const team = room.mode === 'team' ? smallestTeam(room) : 0;
   room.players.push(makePlayer(name, room.players.length, crypto.randomUUID(), team));
   return room;

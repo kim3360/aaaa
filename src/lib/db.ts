@@ -12,7 +12,7 @@ import {
   type Database,
 } from 'firebase/database';
 import { emptyRoom, makeCode, makePlayer, normalizeRoom, smallestTeam } from './logic';
-import type { FirebaseConfig, Room } from './types';
+import type { FirebaseConfig, Room, RoomOptions } from './types';
 import { MAX_PLAYERS } from './data';
 
 let app: FirebaseApp | undefined;
@@ -70,11 +70,11 @@ function clean(value: unknown): unknown {
   return value;
 }
 
-export async function createRoom(name: string) {
+export async function createRoom(name: string, options: RoomOptions = {}) {
   for (let i = 0; i < 10; i += 1) {
     const code = makeCode();
     const host = makePlayer(name, 0);
-    const created = emptyRoom(code, host);
+    const created = emptyRoom(code, host, options);
     const result = await runTransaction(roomRef(code), (current) => {
       if (current) return;
       return clean(created);
@@ -95,7 +95,7 @@ export async function joinRoom(code: string, name: string) {
     const room = normalizeRoom(current);
     if (!room) return;
     if (room.phase !== 'lobby') return;
-    if (room.players.length >= MAX_PLAYERS) return;
+    if (room.players.length >= (room.maxPlayers || MAX_PLAYERS)) return;
     const team = room.mode === 'team' ? smallestTeam(room) : 0;
     room.players.push(makePlayer(name, room.players.length, player.id, team));
     return clean(room);
@@ -123,6 +123,20 @@ export async function transactRoom(code: string, mutator: RoomMutator) {
   });
   if (!result.committed) throw new Error('지금은 할 수 없습니다');
   return normalizeRoom(result.snapshot.val());
+}
+
+export function subscribeRooms(onRooms: (rooms: Room[]) => void) {
+  return onValue(ref(requireDb(), 'rooms'), (snap) => {
+    if (!snap.exists()) {
+      onRooms([]);
+      return;
+    }
+    const rooms = Object.values(snap.val() as Record<string, unknown>)
+      .map((raw) => normalizeRoom(raw))
+      .filter((room): room is Room => !!room)
+      .sort((a, b) => Number(b.phase === 'lobby') - Number(a.phase === 'lobby'));
+    onRooms(rooms);
+  });
 }
 
 export function subscribeRoom(code: string, onRoom: (room: Room | null) => void) {

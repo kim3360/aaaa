@@ -317,7 +317,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
         <div className="setup-head">
           <button className="back-btn" onClick={onLeave}>←</button>
           <h1 className="title">대기실</h1>
-          <span className="chip">{room.players.length}/{MAX_PLAYERS}명</span>
+          <span className="chip">{room.players.length}/{room.maxPlayers || MAX_PLAYERS}명</span>
         </div>
         <p className="lobby-label">코드를 공유하면 바로 들어옵니다</p>
         <div
