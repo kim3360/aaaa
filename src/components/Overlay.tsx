@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { TEAM_META } from '@/lib/data';
 import type { GameAction, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
 
 function ActorWait({ name }: { name: string }) {
@@ -8,7 +9,13 @@ function ActorWait({ name }: { name: string }) {
 }
 
 function playerName(room: Room, i = 0) {
-  return room.players[i]?.name || `플레이어 ${i + 1}`;
+  const player = room.players[i];
+  if (!player) return `플레이어 ${i + 1}`;
+  if (room.mode === 'team') {
+    const team = TEAM_META[player.team];
+    return `${team?.emoji ?? ''} ${player.name}`;
+  }
+  return player.name;
 }
 
 type OverlayProps = {
@@ -24,18 +31,44 @@ type OverlayProps = {
 export default function Overlay({ room, mine, isHost, showStats, onAct, onCloseStats, onEndGame }: OverlayProps) {
   if (showStats) {
     const ranked = [...room.players].sort((a, b) => b.drinks - a.drinks);
+    const teams =
+      room.mode === 'team'
+        ? TEAM_META.slice(0, room.teamCount)
+            .map((meta) => ({
+              ...meta,
+              drinks: room.players.filter((p) => p.team === meta.id).reduce((sum, p) => sum + p.drinks, 0),
+              count: room.players.filter((p) => p.team === meta.id).length,
+            }))
+            .filter((t) => t.count)
+            .sort((a, b) => b.drinks - a.drinks)
+        : [];
     return (
       <div className="overlay">
         <div className="sheet">
           <div className="handle" />
           <h2 className="event-title" style={{ fontSize: 26 }}>주량 현황</h2>
           <p className="event-desc">많이 마신 사람일수록 오늘의 주인공</p>
+          {teams.length ? (
+            <div className="stats-sheet" style={{ marginBottom: 12 }}>
+              {teams.map((t, idx) => (
+                <div className="stat-line" key={t.id}>
+                  <span className="rank">{idx + 1}</span>
+                  <span className="dot" style={{ background: t.color }} />
+                  <b style={{ color: t.color }}>{t.emoji} {t.name}</b>
+                  <span className="drinks">{t.drinks}잔</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="stats-sheet">
             {ranked.map((p, idx) => (
               <div className="stat-line" key={p.id}>
                 <span className="rank">{idx + 1}</span>
                 <span className="dot" style={{ background: p.color }} />
-                <b style={{ color: p.color }}>{p.name}</b>
+                <b style={{ color: p.color }}>
+                  {room.mode === 'team' ? `${TEAM_META[p.team]?.emoji ?? ''} ` : ''}
+                  {p.name}
+                </b>
                 <span className="drinks">{p.drinks}잔</span>
               </div>
             ))}
@@ -169,11 +202,15 @@ function OverlayBody({
         <p className="event-desc">{o.desc}</p>
         {mine === o.actor ? (
           <>
-            <p className="wait-copy">다른 사람이 흑기사를 눌러주길 기다리거나</p>
+            <p className="wait-copy">
+              {room.mode === 'team' ? '같은 팀이 흑기사를 눌러주길 기다리거나' : '다른 사람이 흑기사를 눌러주길 기다리거나'}
+            </p>
             <button className="btn btn-ghost" onClick={() => onAct({ op: 'knight-self' })}>
               흑기사 없음 · 내가 마심
             </button>
           </>
+        ) : room.mode === 'team' && room.players[mine]?.team !== room.players[o.actor ?? 0]?.team ? (
+          <p className="wait-copy">상대 팀 흑기사 대기</p>
         ) : (
           <button className="btn btn-gold" onClick={() => onAct({ op: 'knight-volunteer' })}>
             내가 흑기사 할게

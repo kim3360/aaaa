@@ -1,29 +1,33 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Overlay from './Overlay';
-import { TILES, tileGridPosition } from '@/lib/data';
+import SetupScreen from './SetupScreen';
 import {
-  createRoom,
+  applyAct,
+  beginRoll,
+  canStartGame,
+  findPlayer,
+  setPlayMode,
+  setPlayerTeam,
+  startGame,
+  startPendingMove,
+  stepMove,
+  teamLabel,
+} from '@/lib/logic';
+import { MAX_PLAYERS, TEAM_META, TILES, tileGridPosition } from '@/lib/data';
+import {
+  bootDb,
   deleteRoom,
-  initDb,
   joinRoom,
-  loadConfig,
   subscribeRoom,
   touchPlayer,
   transactRoom,
   type RoomMutator,
 } from '@/lib/db';
-import {
-  applyAct,
-  beginRoll,
-  findPlayer,
-  startGame,
-  startPendingMove,
-  stepMove,
-} from '@/lib/logic';
-import type { GameAction, Player, Room, Screen } from '@/lib/types';
+import { clearSession, getSavedName, getSession, saveName, saveSession } from '@/lib/session';
+import type { GameAction, Player, Room } from '@/lib/types';
 
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 
@@ -64,49 +68,29 @@ function errMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
 }
 
-export default function GameApp() {
-  const searchParams = useSearchParams();
-  const [screen, setScreen] = useState<Screen>('home');
+export default function RoomGate({ code, view }: { code: string; view: 'lobby' | 'play' }) {
+  const router = useRouter();
+  const roomCode = code.toUpperCase();
   const [name, setName] = useState('');
-  const [code, setCode] = useState((searchParams.get('room') || '').toUpperCase());
   const [playerId, setPlayerId] = useState('');
   const [room, setRoom] = useState<Room | null>(null);
   const [error, setError] = useState('');
   const [showStats, setShowStats] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [ready, setReady] = useState(false);
+  const [needsJoin, setNeedsJoin] = useState(false);
   const [diceFace, setDiceFace] = useState(1);
 
   const roomRef = useRef<Room | null>(null);
   const playerIdRef = useRef('');
-  const nameRef = useRef('');
   const unsubRef = useRef<(() => void) | null>(null);
   const moveLock = useRef(false);
   const armedUntil = useRef(0);
   const diceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevPhase = useRef<'lobby' | 'playing' | null>(null);
 
   roomRef.current = room;
   playerIdRef.current = playerId;
-  nameRef.current = name;
-
-  const bootDb = useCallback(() => {
-    const config = loadConfig();
-    if (!config) return false;
-    initDb(config);
-    return true;
-  }, []);
-
-  const clearSession = () => {
-    sessionStorage.removeItem('juru-id');
-    sessionStorage.removeItem('juru-code');
-  };
-
-  const saveSession = (nextRoom: Room, nextId: string) => {
-    if (!nextRoom) return;
-    sessionStorage.setItem('juru-id', nextId);
-    sessionStorage.setItem('juru-code', nextRoom.code);
-    localStorage.setItem('juru-name', nameRef.current);
-  };
 
   const startDiceAnim = useCallback(() => {
     if (diceTimer.current) return;
@@ -126,51 +110,49 @@ export default function GameApp() {
   const applyRoom = useCallback(
     (next: Room | null) => {
       if (!next) {
-        if (roomRef.current) {
-          clearSession();
-          setRoom(null);
-          setScreen('home');
-          setError('방이 없어졌습니다');
-        }
+        clearSession();
+        setRoom(null);
+        router.replace('/');
         return;
       }
       setRoom(next);
-      setScreen(next.phase === 'lobby' ? 'lobby' : 'game');
       if (next.overlay) setShowStats(false);
-      saveSession(next, playerIdRef.current);
+      const session = getSession();
+      if (session.id) saveSession(next.code, session.id);
       if (next.rolling) startDiceAnim();
       else {
         stopDiceAnim();
         setDiceFace(next.lastDice);
       }
     },
-    [startDiceAnim, stopDiceAnim],
+    [router, startDiceAnim, stopDiceAnim],
   );
 
   const watch = useCallback(
-    (roomCode: string) => {
+    (nextCode: string) => {
       unsubRef.current?.();
-      unsubRef.current = subscribeRoom(roomCode, applyRoom);
+      unsubRef.current = subscribeRoom(nextCode, applyRoom);
     },
     [applyRoom],
   );
 
   useEffect(() => {
-    setName(localStorage.getItem('juru-name') || '');
-  }, []);
-
-  useEffect(() => {
-    const ok = bootDb();
-    setShowSetup(!ok);
-    setReady(true);
-    if (!ok) return undefined;
-    const savedCode = sessionStorage.getItem('juru-code');
-    const savedId = sessionStorage.getItem('juru-id');
-    if (savedCode && savedId) {
-      setPlayerId(savedId);
-      playerIdRef.current = savedId;
-      watch(savedCode);
+    setName(getSavedName());
+    if (!bootDb()) {
+      setShowSetup(true);
+      setReady(true);
+      return undefined;
     }
+    const session = getSession();
+    if (session.code === roomCode && session.id) {
+      setPlayerId(session.id);
+      playerIdRef.current = session.id;
+      watch(roomCode);
+      setNeedsJoin(false);
+    } else {
+      setNeedsJoin(true);
+    }
+    setReady(true);
     const beat = setInterval(() => {
       const current = roomRef.current;
       const id = playerIdRef.current;
@@ -181,13 +163,17 @@ export default function GameApp() {
       clearInterval(beat);
       stopDiceAnim();
     };
-  }, [bootDb, watch, stopDiceAnim]);
+  }, [roomCode, watch, stopDiceAnim]);
 
-  const commit = (mutator: RoomMutator) => {
-    const current = roomRef.current;
-    if (!current) return Promise.reject(new Error('방이 없습니다'));
-    return transactRoom(current.code, mutator);
-  };
+  useEffect(() => {
+    if (!room) return;
+    if (prevPhase.current === 'lobby' && room.phase === 'playing' && view === 'lobby') {
+      router.push(`/room/${roomCode}/play`);
+    }
+    prevPhase.current = room.phase;
+  }, [room, roomCode, router, view]);
+
+  const commit = (mutator: RoomMutator) => transactRoom(roomCode, mutator);
 
   const runSteps = async () => {
     if (moveLock.current) return;
@@ -235,60 +221,20 @@ export default function GameApp() {
     return () => clearTimeout(id);
   }, [room?.overlay]);
 
-  const onRoll = async () => {
-    try {
-      const next = await commit((r) => beginRoll(r, findPlayer(r, playerIdRef.current)));
-      if (next?.pending?.kind === 'move') {
-        await sleep(900);
-        await commit((r) => startPendingMove(r));
-        await runSteps();
-      }
-    } catch (err) {
-      setError(errMessage(err, '지금은 굴릴 수 없습니다'));
-    }
-  };
-
-  const onCreate = async () => {
-    if (!bootDb()) {
-      setShowSetup(true);
-      return;
-    }
-    if (!name.trim()) {
-      setError('이름을 적어주세요');
-      return;
-    }
-    try {
-      const result = await createRoom(name.trim());
-      setPlayerId(result.playerId);
-      playerIdRef.current = result.playerId;
-      setError('');
-      watch(result.room.code);
-      applyRoom(result.room);
-    } catch (err) {
-      setError(errMessage(err, '방을 만들지 못했습니다'));
-    }
-  };
-
   const onJoin = async () => {
-    if (!bootDb()) {
-      setShowSetup(true);
-      return;
-    }
     if (!name.trim()) {
       setError('이름을 적어주세요');
       return;
     }
-    if (!code) {
-      setError('방 코드를 적어주세요');
-      return;
-    }
     try {
-      const result = await joinRoom(code, name.trim());
+      saveName(name);
+      const result = await joinRoom(roomCode, name.trim());
+      saveSession(result.room.code, result.playerId);
       setPlayerId(result.playerId);
       playerIdRef.current = result.playerId;
+      setNeedsJoin(false);
       setError('');
-      watch(result.room.code);
-      applyRoom(result.room);
+      watch(roomCode);
     } catch (err) {
       setError(errMessage(err, '참가하지 못했습니다'));
     }
@@ -307,103 +253,73 @@ export default function GameApp() {
     }
     unsubRef.current?.();
     clearSession();
-    setRoom(null);
-    setScreen('home');
+    router.push('/');
   };
 
-  if (!ready) {
-    return <section className="screen home" />;
-  }
+  const onRoll = async () => {
+    try {
+      const next = await commit((r) => beginRoll(r, findPlayer(r, playerIdRef.current)));
+      if (next?.pending?.kind === 'move') {
+        await sleep(900);
+        await commit((r) => startPendingMove(r));
+        await runSteps();
+      }
+    } catch (err) {
+      setError(errMessage(err, '지금은 굴릴 수 없습니다'));
+    }
+  };
 
-  if (showSetup) {
+  const onStart = async () => {
+    try {
+      await commit((r) => startGame(r, playerIdRef.current));
+      router.push(`/room/${roomCode}/play`);
+    } catch (err) {
+      setError(errMessage(err, '시작할 수 없습니다'));
+    }
+  };
+
+  if (!ready) return <section className="screen" />;
+  if (showSetup) return <SetupScreen />;
+
+  if (needsJoin) {
     return (
       <section className="screen">
-        <div className="setup-head">
-          <h1 className="title">한 번만 연결</h1>
+        <div className="nav">
+          <button className="back-btn" onClick={() => router.push('/')}>←</button>
+          <span className="nav-mark">방 {roomCode}</span>
         </div>
-        <p className="sub-copy" style={{ textAlign: 'left' }}>
-          Firebase 로그인은 <b>이 컴퓨터를 켜는 사람만</b> 하면 됩니다. 술자리에 오는 사람들은 가입도 로그인도 필요 없습니다.
-        </p>
-        <ol className="setup-steps">
-          <li>
-            <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer">Firebase 콘솔</a>
-            에서 프로젝트 1개 만들기
-          </li>
-          <li>Build → Realtime Database → 만들기 → 테스트 모드</li>
-          <li>톱니바퀴 → 프로젝트 설정 → 내 앱 → 웹 앱 추가</li>
-          <li>
-            <code>.env.example</code>을 복사해 <code>.env.local</code>을 만들고 firebaseConfig 값을 넣기
-          </li>
-          <li>개발 서버를 재시작한 뒤 이 페이지를 새로고침</li>
-        </ol>
-        <p className="sub-copy" style={{ textAlign: 'left' }}>
-          설정이 들어가면 다른 사람은 주소만 열고 이름 적은 다음 방에 들어오면 됩니다.
-        </p>
-        <button className="btn btn-gold" onClick={() => location.reload()}>서버 재시작 후 새로고침</button>
+        <h1 className="title">방에 들어가기</h1>
+        <p className="lead">이름만 적으면 바로 참가됩니다</p>
+        <label className="field">
+          <span>내 이름</span>
+          <input
+            maxLength={8}
+            placeholder="별명"
+            value={name}
+            autoComplete="off"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <button className="btn btn-primary" onClick={onJoin}>참가</button>
+        {error ? <p className="error">{error}</p> : null}
       </section>
     );
   }
 
-  if (screen === 'home' || !room) {
-    return (
-      <section className="screen home">
-        <div className="home-left">
-          <div className="felt-badge">오늘 밤의 보드</div>
-          <div className="hero">
-            <div className="mascot">
-              <span>🍶</span>
-              <span>🎲</span>
-            </div>
-            <h1 className="title">주루마블</h1>
-            <p className="tag">각자 폰으로 접속 · 턴만 넘긴다</p>
-          </div>
-          <div className="legend">
-            <span className="legend-item drink">술</span>
-            <span className="legend-item game">게임</span>
-            <span className="legend-item knight">흑기사</span>
-            <span className="legend-item move">이동</span>
-          </div>
-        </div>
-        <div className="home-right">
-          <label className="field">
-            <span>내 이름</span>
-            <input
-              maxLength={8}
-              placeholder="별명"
-              value={name}
-              autoComplete="off"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <button className="btn btn-primary" onClick={onCreate}>방 만들기</button>
-          <div className="or">또는</div>
-          <label className="field">
-            <span>방 코드</span>
-            <input
-              maxLength={4}
-              placeholder="예: 7K2P"
-              value={code}
-              autoComplete="off"
-              onChange={(e) => setCode(e.target.value.trim().toUpperCase())}
-            />
-          </label>
-          <button className="btn btn-gold" onClick={onJoin}>방 참가</button>
-          {error ? <p className="error">{error}</p> : null}
-        </div>
-      </section>
-    );
-  }
+  if (!room) return <section className="screen" />;
 
-  if (screen === 'lobby') {
-    const link = typeof window === 'undefined' ? '' : `${location.origin}${location.pathname}?room=${room.code}`;
+  if (view === 'lobby') {
+    const link = typeof window === 'undefined' ? '' : `${location.origin}/room/${room.code}`;
     const host = playerId === room.hostId;
+    const startReady = canStartGame(room);
     return (
       <section className="screen lobby">
         <div className="setup-head">
+          <button className="back-btn" onClick={onLeave}>←</button>
           <h1 className="title">대기실</h1>
-          <span className="chip">{room.players.length}명</span>
+          <span className="chip">{room.players.length}/{MAX_PLAYERS}명</span>
         </div>
-        <p className="lobby-label">방 코드를 알려주세요</p>
+        <p className="lobby-label">코드를 공유하면 바로 들어옵니다</p>
         <div
           className="room-code"
           onClick={async () => {
@@ -417,28 +333,91 @@ export default function GameApp() {
         >
           {room.code}
         </div>
-        <p className="sub-copy">같은 주소로 들어와 코드만 입력하면 됩니다</p>
+        <p className="sub-copy">회원가입 없이 이름만 적으면 됩니다</p>
+        {room.phase === 'playing' ? (
+          <button className="btn btn-primary" onClick={() => router.push(`/room/${roomCode}/play`)}>
+            보드로 돌아가기
+          </button>
+        ) : null}
+        {host && room.phase === 'lobby' ? (
+          <div className="mode-row">
+            <button
+              className={`mode-btn ${room.mode === 'free' ? 'on' : ''}`}
+              onClick={() => commit((r) => setPlayMode(r, playerIdRef.current, 'free')).catch((err) => setError(errMessage(err, '바꿀 수 없습니다')))}
+            >
+              개인전
+            </button>
+            <button
+              className={`mode-btn ${room.mode === 'team' ? 'on' : ''}`}
+              onClick={() => commit((r) => setPlayMode(r, playerIdRef.current, 'team', room.teamCount)).catch((err) => setError(errMessage(err, '바꿀 수 없습니다')))}
+            >
+              팀전
+            </button>
+          </div>
+        ) : (
+          room.phase === 'lobby' ? <p className="sub-copy">{room.mode === 'team' ? '팀전' : '개인전'}</p> : null
+        )}
+        {room.mode === 'team' && host && room.phase === 'lobby' ? (
+          <div className="mode-row">
+            {[2, 3, 4].map((n) => (
+              <button
+                key={n}
+                className={`mode-btn ${room.teamCount === n ? 'on' : ''}`}
+                onClick={() => commit((r) => setPlayMode(r, playerIdRef.current, 'team', n)).catch((err) => setError(errMessage(err, '바꿀 수 없습니다')))}
+              >
+                {n}팀
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="lobby-list">
-          {room.players.map((p) => (
-            <div className="player-row" style={{ '--seat': p.color } as CSSProperties} key={p.id}>
-              <span className="seat">{p.id === room.hostId ? '방' : '입'}</span>
-              <span className="lobby-name">{p.name}{p.id === playerId ? ' · 나' : ''}</span>
-              <span className={`online ${isOnline(p) ? 'on' : ''}`}>{isOnline(p) ? '접속' : '끊김'}</span>
-            </div>
-          ))}
+          {room.players.map((p) => {
+            const team = teamLabel(p.team);
+            return (
+              <div
+                className="player-row"
+                style={{ '--seat': room.mode === 'team' ? team.color : p.color } as CSSProperties}
+                key={p.id}
+              >
+                <span className="seat">{p.id === room.hostId ? '방' : '입'}</span>
+                <span className="lobby-name">
+                  {room.mode === 'team' ? `${team.emoji} ` : ''}
+                  {p.name}
+                  {p.id === playerId ? ' · 나' : ''}
+                </span>
+                {room.mode === 'team' && (host || p.id === playerId) && room.phase === 'lobby' ? (
+                  <div className="team-picks">
+                    {TEAM_META.slice(0, room.teamCount).map((meta) => (
+                      <button
+                        key={meta.id}
+                        className={`team-chip ${p.team === meta.id ? 'on' : ''}`}
+                        style={{ background: meta.color }}
+                        onClick={() => commit((r) => setPlayerTeam(r, playerIdRef.current, p.id, meta.id)).catch((err) => setError(errMessage(err, '팀을 바꿀 수 없습니다')))}
+                      >
+                        {meta.emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className={`online ${isOnline(p) ? 'on' : ''}`}>{isOnline(p) ? '접속' : '끊김'}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
         {error ? <p className="error">{error}</p> : null}
-        {host ? (
-          <button
-            className="btn btn-primary"
-            disabled={room.players.length < 2}
-            onClick={() => commit((r) => startGame(r, playerIdRef.current)).catch((err) => setError(errMessage(err, '시작할 수 없습니다')))}
-          >
-            게임 시작
-          </button>
-        ) : (
+        {room.phase === 'lobby' && host ? (
+          <>
+            {!startReady && room.mode === 'team' ? (
+              <p className="wait-copy">팀을 둘 이상으로 나눠주세요</p>
+            ) : null}
+            <button className="btn btn-primary" disabled={!startReady} onClick={onStart}>
+              {room.players.length < 2 ? '혼자 시작' : '게임 시작'}
+            </button>
+          </>
+        ) : room.phase === 'lobby' ? (
           <p className="wait-copy">방장이 시작하기를 기다리는 중</p>
-        )}
+        ) : null}
         <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onLeave}>나가기</button>
       </section>
     );
@@ -450,16 +429,30 @@ export default function GameApp() {
   const canRoll = myTurn && !room.rolling && !room.moving && !room.overlay;
   const positions = room.players.map((p) => p.position);
 
+  if (room.phase === 'lobby') {
+    return (
+      <section className="screen">
+        <div className="nav">
+          <button className="back-btn" onClick={() => router.push(`/room/${roomCode}`)}>←</button>
+          <span className="nav-mark">대기실로</span>
+        </div>
+        <p className="lead">아직 게임이 시작되지 않았습니다</p>
+        <button className="btn btn-primary" onClick={() => router.push(`/room/${roomCode}`)}>대기실로 돌아가기</button>
+      </section>
+    );
+  }
+
   return (
     <section className="screen game">
       <div className="topbar">
+        <button className="back-btn" onClick={() => router.push(`/room/${roomCode}`)}>←</button>
         <h1 className="title">주루마블</h1>
         <button className="chip" onClick={() => setShowStats(true)}>
           주량 {room.players.reduce((a, p) => a + p.drinks, 0)}잔
         </button>
       </div>
       <div className={`turn-banner ${myTurn ? 'mine' : ''}`}>
-        {myTurn ? '내 차례입니다' : `${current.name} 차례 · 기다리세요`}
+        {myTurn ? '내 차례입니다' : `${room.mode === 'team' ? `${teamLabel(current.team).emoji} ` : ''}${current.name} 차례 · 기다리세요`}
       </div>
       <div className="board-wrap">
         <div className="table">
@@ -491,7 +484,10 @@ export default function GameApp() {
             })}
             <div className="center">
               <div className="turn-label">{myTurn ? '주사위를 누르세요' : '상대 턴'}</div>
-              <div className="turn-name" style={{ color: current.color }}>{current.name}</div>
+              <div className="turn-name" style={{ color: current.color }}>
+                {room.mode === 'team' ? `${teamLabel(current.team).emoji} ` : ''}
+                {current.name}
+              </div>
               <button
                 className={`dice ${room.rolling ? 'rolling' : ''}`}
                 disabled={!canRoll}
@@ -505,6 +501,7 @@ export default function GameApp() {
                   <span className={`stat ${p.id === playerId ? 'me-stat' : ''}`} key={p.id}>
                     <span className="dot" style={{ background: p.color }} />
                     {p.name}
+                    {room.mode === 'team' ? teamLabel(p.team).emoji : ''}
                     <b>{p.drinks}</b>
                   </span>
                 ))}

@@ -1,10 +1,5 @@
-import { Suspense } from "react"
-import GameApp from "@/components/GameApp"
+import HomeClient from '@/components/HomeClient';
 
 export default function Page() {
-  return (
-    <Suspense>
-      <GameApp />
-    </Suspense>
-  )
+  return <HomeClient />;
 }

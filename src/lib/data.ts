@@ -1,5 +1,7 @@
 import type { ChosungRound, MiniGame, RoulettePrize, Tile } from './types';
 
+export const MAX_PLAYERS = 20;
+
 export const PLAYER_COLORS = [
   '#3ecf6a',
   '#ffd24a',
@@ -9,7 +11,26 @@ export const PLAYER_COLORS = [
   '#c084fc',
   '#22d3ee',
   '#fb7185',
+  '#a3e635',
+  '#f472b6',
+  '#38bdf8',
+  '#facc15',
+  '#fb923c',
+  '#818cf8',
+  '#34d399',
+  '#e879f9',
+  '#f87171',
+  '#2dd4bf',
+  '#c4b5fd',
+  '#fdba74',
 ];
+
+export const TEAM_META = [
+  { id: 0, name: '홍팀', emoji: '🔴', color: '#ff5a7a' },
+  { id: 1, name: '청팀', emoji: '🔵', color: '#5aa7ff' },
+  { id: 2, name: '녹팀', emoji: '🟢', color: '#3ecf6a' },
+  { id: 3, name: '노팀', emoji: '🟡', color: '#ffd24a' },
+] as const;
 
 export const TILES: Tile[] = [
   { id: 0, name: '출발', emoji: '🚩', type: 'start', desc: '한 바퀴 돌면 축하주 1잔!' },

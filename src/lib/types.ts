@@ -43,6 +43,8 @@ export type ChosungRound = {
   text: string;
 };
 
+export type PlayMode = 'free' | 'team';
+
 export type Player = {
   id: string;
   name: string;
@@ -52,6 +54,7 @@ export type Player = {
   skip: boolean;
   connected: boolean;
   lastSeen: number;
+  team: number;
 };
 
 export type OverlayType =
@@ -143,6 +146,8 @@ export type Room = {
   code: string;
   hostId: string;
   phase: 'lobby' | 'playing';
+  mode: PlayMode;
+  teamCount: number;
   players: Player[];
   current: number;
   lastDice: number;

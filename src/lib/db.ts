@@ -11,8 +11,9 @@ import {
   update,
   type Database,
 } from 'firebase/database';
-import { emptyRoom, makeCode, makePlayer, normalizeRoom } from './logic';
+import { emptyRoom, makeCode, makePlayer, normalizeRoom, smallestTeam } from './logic';
 import type { FirebaseConfig, Room } from './types';
+import { MAX_PLAYERS } from './data';
 
 let app: FirebaseApp | undefined;
 let db: Database | undefined;
@@ -38,6 +39,13 @@ export function initDb(config: FirebaseConfig) {
   app = initializeApp(config);
   db = getDatabase(app);
   return db;
+}
+
+export function bootDb() {
+  const config = loadConfig();
+  if (!config) return false;
+  initDb(config);
+  return true;
 }
 
 function requireDb() {
@@ -87,8 +95,9 @@ export async function joinRoom(code: string, name: string) {
     const room = normalizeRoom(current);
     if (!room) return;
     if (room.phase !== 'lobby') return;
-    if (room.players.length >= 8) return;
-    room.players.push(makePlayer(name, room.players.length, player.id));
+    if (room.players.length >= MAX_PLAYERS) return;
+    const team = room.mode === 'team' ? smallestTeam(room) : 0;
+    room.players.push(makePlayer(name, room.players.length, player.id, team));
     return clean(room);
   });
   if (!result.committed || !result.snapshot.exists()) {

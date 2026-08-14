@@ -4,8 +4,10 @@ import {
   MINIGAMES,
   ROULETTE_PRIZES,
   CHOSUNG_ROUNDS,
+  MAX_PLAYERS,
+  TEAM_META,
 } from './data';
-import type { GameAction, MiniState, OverlayState, Player, Room, RoulettePrize, Tile } from './types';
+import type { GameAction, MiniState, OverlayState, PlayMode, Player, Room, RoulettePrize, Tile } from './types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -19,7 +21,7 @@ export function makeCode() {
   return code;
 }
 
-export function makePlayer(name: string, index: number, id = crypto.randomUUID()): Player {
+export function makePlayer(name: string, index: number, id = crypto.randomUUID(), team = 0): Player {
   return {
     id,
     name: String(name || '').trim().slice(0, 8) || `플레이어 ${index + 1}`,
@@ -29,6 +31,7 @@ export function makePlayer(name: string, index: number, id = crypto.randomUUID()
     skip: false,
     connected: true,
     lastSeen: Date.now(),
+    team,
   };
 }
 
@@ -37,6 +40,8 @@ export function emptyRoom(code: string, host: Player): Room {
     code,
     hostId: host.id,
     phase: 'lobby',
+    mode: 'free',
+    teamCount: 2,
     players: [host],
     current: 0,
     lastDice: 1,
@@ -65,6 +70,13 @@ export function normalizeRoom(raw: unknown): Room | null {
   room.pending = (data.pending as Room['pending']) || null;
   room.rolling = !!room.rolling;
   room.moving = !!room.moving;
+  room.mode = room.mode === 'team' ? 'team' : 'free';
+  room.teamCount = Math.min(4, Math.max(2, Number(room.teamCount) || 2));
+  room.players = room.players.map((p, i) => ({
+    ...p,
+    team: Math.min(room.teamCount - 1, Math.max(0, Number(p.team) || 0)),
+    color: p.color || PLAYER_COLORS[i % PLAYER_COLORS.length],
+  }));
   return room;
 }
 
@@ -83,8 +95,56 @@ function pname(room: Room, i: number) {
   return room.players[i]?.name || `플레이어 ${i + 1}`;
 }
 
-function others(room: Room, except: number) {
-  return room.players.map((_, i) => i).filter((i) => i !== except);
+function others(room: Room, except: number, kind: 'any' | 'rival' | 'ally' = 'any') {
+  return room.players.map((_, i) => i).filter((i) => {
+    if (i === except) return false;
+    if (room.mode !== 'team' || kind === 'any') return true;
+    const same = room.players[i].team === room.players[except].team;
+    return kind === 'rival' ? !same : same;
+  });
+}
+
+export function teamLabel(team: number) {
+  return TEAM_META[team] ?? TEAM_META[0];
+}
+
+export function smallestTeam(room: Room) {
+  const counts = TEAM_META.slice(0, room.teamCount).map(
+    (meta) => room.players.filter((p) => p.team === meta.id).length,
+  );
+  return counts.indexOf(Math.min(...counts));
+}
+
+function pickOrFallback(
+  room: Room,
+  me: number,
+  title: string,
+  desc: string,
+  ids: number[],
+  kind: string,
+  extra: number | string | null = null,
+) {
+  if (ids.length) {
+    setPick(room, title, desc, ids, kind, extra);
+    return;
+  }
+  if (kind === 'point') {
+    const amount = Number(extra) || 1;
+    addDrinks(room, me, amount);
+    finishTurn(room, `지목할 상대가 없어 ${pname(room, me)} ${amount}잔`);
+  } else if (kind === 'death') {
+    addDrinks(room, me, 2);
+    finishTurn(room, `지목할 상대가 없어 ${pname(room, me)} 2잔`);
+  } else if (kind === 'knight-2') {
+    addDrinks(room, me, 2);
+    finishTurn(room, `흑기사 후보가 없어 ${pname(room, me)} 2잔`);
+  } else if (kind === 'rps-opponent') {
+    finishTurn(room, '대결할 상대가 없습니다');
+  } else if (kind === 'all_but_one') {
+    finishTurn(room, `${pname(room, me)}만 생존. 마실 사람이 없습니다`);
+  } else if (kind === 'updown-point') {
+    finishTurn(room, '지목할 상대가 없어 넘어갑니다');
+  }
 }
 
 function addDrinks(room: Room, index: number, amount = 0) {
@@ -149,7 +209,8 @@ function startRandomMinigame(room: Room) {
 }
 
 function startSpinPlayer(room: Room) {
-  const ids = room.players.map((_, i) => i);
+  const rivals = others(room, room.current, 'rival');
+  const ids = rivals.length ? rivals : room.players.map((_, i) => i);
   const winner = ids[rand(ids.length)];
   const loop = [...ids, ...ids, ...ids, winner];
   room.overlay = {
@@ -181,11 +242,11 @@ function applyPrize(room: Room, prize: RoulettePrize) {
     addAllDrinks(room, prize.amount);
     finishTurn(room, `전원 ${prize.amount}잔`);
   } else if (prize.type === 'all_but_one') {
-    setPick(room, '살아남을 사람', '이 사람만 안 마십니다', room.players.map((_, i) => i), 'all_but_one');
+    pickOrFallback(room, me, '살아남을 사람', '이 사람만 안 마십니다', room.players.map((_, i) => i), 'all_but_one');
   } else if (prize.type === 'blackknight') {
-    setPick(room, '흑기사', '대신 마실 사람', others(room, me), 'knight-2');
+    pickOrFallback(room, me, '흑기사', '대신 마실 사람', others(room, me, 'rival'), 'knight-2');
   } else if (prize.type === 'point') {
-    setPick(room, '지정', `${prize.amount}잔 선물`, others(room, me), 'point', prize.amount ?? 1);
+    pickOrFallback(room, me, '지정', `${prize.amount}잔 선물`, others(room, me, 'rival'), 'point', prize.amount ?? 1);
   } else if (prize.type === 'water') {
     finishTurn(room, '대박. 물 원샷으로 생존');
   } else if (prize.type === 'minigame') {
@@ -208,12 +269,28 @@ export function resolveTile(room: Room, tile: Tile) {
       finishTurn(room, `전원 ${tile.amount}잔! 원샷`);
       break;
     case 'point':
-      setPick(room, '누구 마실래', `${tile.amount}잔을 떠넘길 사람을 고르세요`, others(room, me), 'point', tile.amount ?? 1);
+      pickOrFallback(
+        room,
+        me,
+        '누구 마실래',
+        `${tile.amount}잔을 떠넘길 사람을 고르세요`,
+        others(room, me, 'rival'),
+        'point',
+        tile.amount ?? 1,
+      );
       break;
     case 'blackknight':
+      if (!others(room, me, 'ally').length) {
+        addDrinks(room, me, 1);
+        finishTurn(room, `흑기사가 없어 ${pname(room, me)} 1잔`);
+        break;
+      }
       room.overlay = {
         type: 'knight',
-        desc: `${pname(room, me)} 대신 마셔줄 사람을 찾습니다`,
+        desc:
+          room.mode === 'team'
+            ? `${pname(room, me)} 대신 마셔줄 같은 팀을 찾습니다`
+            : `${pname(room, me)} 대신 마셔줄 사람을 찾습니다`,
         actor: me,
       };
       break;
@@ -235,7 +312,7 @@ export function resolveTile(room: Room, tile: Tile) {
       room.overlay = { type: 'sing', actor: me };
       break;
     case 'rps':
-      setPick(room, '가위바위보 상대', '한 명을 골라 승부하세요', others(room, me), 'rps-opponent');
+      pickOrFallback(room, me, '가위바위보 상대', '한 명을 골라 승부하세요', others(room, me, 'rival'), 'rps-opponent');
       break;
     case 'move':
       room.overlay = {
@@ -294,7 +371,7 @@ function runMinigame(room: Room, id: string) {
       actor: room.current,
     };
   } else {
-    setPick(room, '더 게임 오브 데스', '한 명을 지목하세요. 2잔', others(room, room.current), 'death');
+    pickOrFallback(room, room.current, '더 게임 오브 데스', '한 명을 지목하세요. 2잔', others(room, room.current, 'rival'), 'death');
   }
 }
 
@@ -427,6 +504,10 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
     addDrinks(room, playerIndex, 1);
     finishTurn(room, `${pname(room, playerIndex)} 흑기사 실패. 본인 1잔`);
   } else if (op === 'knight-volunteer' && overlay.type === 'knight' && playerIndex !== overlay.actor) {
+    if (room.mode === 'team') {
+      const actorTeam = room.players[overlay.actor ?? 0]?.team;
+      if (room.players[playerIndex].team !== actorTeam) return;
+    }
     addDrinks(room, playerIndex, 1);
     finishTurn(room, `${pname(room, playerIndex)} 흑기사 등판. 1잔 대참`);
   } else if (op === 'truth' && overlay.type === 'truth' && playerIndex === overlay.actor) {
@@ -478,7 +559,7 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
     const mini = room.mini;
     if (!mini || mini.secret == null || mini.low == null || mini.high == null || mini.turn == null) return;
     if (g === mini.secret) {
-      setPick(room, '정답! 지목 1잔', `${pname(room, playerIndex)} 맞혔습니다`, others(room, playerIndex), 'updown-point');
+      pickOrFallback(room, playerIndex, '정답! 지목 1잔', `${pname(room, playerIndex)} 맞혔습니다`, others(room, playerIndex, 'rival'), 'updown-point');
     } else {
       addDrinks(room, playerIndex, 1);
       if (g < mini.secret) mini.low = Math.max(mini.low, g + 1);
@@ -542,17 +623,57 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
 
 export function joinInto(room: Room, name: string) {
   if (room.phase !== 'lobby') return '이미 시작한 방입니다';
-  if (room.players.length >= 8) return '방이 가득 찼습니다';
-  room.players.push(makePlayer(name, room.players.length));
+  if (room.players.length >= MAX_PLAYERS) return '방이 가득 찼습니다';
+  const team = room.mode === 'team' ? smallestTeam(room) : 0;
+  room.players.push(makePlayer(name, room.players.length, crypto.randomUUID(), team));
   return room;
+}
+
+export function canStartGame(room: Room) {
+  if (!room.players.length) return false;
+  if (room.mode !== 'team') return true;
+  const teams = new Set(room.players.map((p) => p.team));
+  return room.players.length >= 2 && teams.size >= 2;
 }
 
 export function startGame(room: Room, playerId: string) {
   if (room.phase !== 'lobby') return;
   if (playerId !== room.hostId) return;
-  if (room.players.length < 2) return;
+  if (!canStartGame(room)) return;
   room.phase = 'playing';
   room.current = 0;
   room.overlay = null;
+  return room;
+}
+
+export function setPlayMode(room: Room, playerId: string, mode: PlayMode, teamCount = 2) {
+  if (room.phase !== 'lobby' || playerId !== room.hostId) return;
+  if (mode === 'team') {
+    const nextCount = Math.min(4, Math.max(2, teamCount));
+    const reshuffle = room.mode !== 'team' || room.teamCount !== nextCount;
+    room.mode = 'team';
+    room.teamCount = nextCount;
+    if (reshuffle) {
+      room.players.forEach((p, i) => {
+        p.team = i % room.teamCount;
+      });
+    }
+  } else {
+    room.mode = 'free';
+    room.players.forEach((p) => {
+      p.team = 0;
+    });
+  }
+  return room;
+}
+
+export function setPlayerTeam(room: Room, playerId: string, targetId: string, team: number) {
+  if (room.phase !== 'lobby') return;
+  if (playerId !== room.hostId && playerId !== targetId) return;
+  if (room.mode !== 'team') return;
+  if (team < 0 || team >= room.teamCount) return;
+  const player = room.players.find((p) => p.id === targetId);
+  if (!player) return;
+  player.team = team;
   return room;
 }
