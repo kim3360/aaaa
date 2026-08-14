@@ -1758,11 +1758,12 @@ input[type='number'] {
 }
 
 .balance-choice strong {
-  font-size: clamp(18px, 5.6vw, 24px);
+  font-size: clamp(16px, 4.6vw, 22px);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1.25;
+  line-height: 1.35;
   text-align: center;
+  max-width: 16em;
 }
 
 .balance-choice em {

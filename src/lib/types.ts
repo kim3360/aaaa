@@ -235,6 +235,7 @@ export type BalanceRoom = {
   votes: Record<string, BalanceChoice>;
   voterIds: string[];
   usedIds: string[];
+  usedTexts: string[];
   result: BalanceResult | null;
   round: number;
   category: BalanceCategoryId;

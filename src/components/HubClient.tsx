@@ -16,7 +16,7 @@ const GAMES = [
     emoji: '⚖️',
     name: '밸런스 게임',
     desc: '둘 중 하나를 고르고, 소수파가 마십니다',
-    tags: ['투표', '2명~', '빠른 한 판'],
+    tags: ['투표', '소수부터', '빠른 한 판'],
     tone: 'balance',
   },
 ] as const;

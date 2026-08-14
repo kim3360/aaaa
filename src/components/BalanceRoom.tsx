@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import SetupScreen from './SetupScreen';
 import {
   BALANCE_CATEGORIES,
+  canStartBalance,
   categoryLabel,
   nextBalanceRound,
   revealBalance,
@@ -26,7 +27,7 @@ import {
   saveBalanceSession,
   saveName,
 } from '@/lib/session';
-import type { BalanceChoice, BalanceRoom as BalanceRoomState } from '@/lib/types';
+import type { BalanceChoice, BalanceQuestion, BalanceRoom as BalanceRoomState } from '@/lib/types';
 
 function errMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
@@ -42,6 +43,7 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [ready, setReady] = useState(false);
   const [showSetup, setShowSetup] = useState(false);
   const [needsJoin, setNeedsJoin] = useState(false);
+  const [making, setMaking] = useState(false);
   const playerIdRef = useRef('');
 
   useEffect(() => {
@@ -103,6 +105,41 @@ export default function BalanceRoom({ code }: { code: string }) {
     }
     clearBalanceSession();
     router.push('/balance');
+  };
+
+  const askQuestion = async (): Promise<BalanceQuestion> => {
+    const res = await fetch('/api/balance/question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category: room?.category || 'all',
+        avoid: room?.usedTexts || [],
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as BalanceQuestion & { error?: string };
+    if (!res.ok || !data.left || !data.right) {
+      throw new Error(data.error || '문제를 만들지 못했습니다');
+    }
+    return data;
+  };
+
+  const startOrNext = async (kind: 'start' | 'next') => {
+    if (kind === 'start' && room && !canStartBalance(room)) {
+      setError('홀수 인원일 때만 시작할 수 있습니다');
+      return;
+    }
+    setMaking(true);
+    setError('');
+    try {
+      const question = await askQuestion();
+      await commit((r) =>
+        kind === 'start' ? startBalanceRound(r, question) : nextBalanceRound(r, playerId, question),
+      );
+    } catch (err) {
+      setError(errMessage(err, kind === 'start' ? '시작하지 못했습니다' : '다음으로 못 갔습니다'));
+    } finally {
+      setMaking(false);
+    }
   };
 
   const shareRoom = async () => {
@@ -204,7 +241,7 @@ export default function BalanceRoom({ code }: { code: string }) {
           {room.code}
         </div>
         <button className="btn btn-ghost share-btn" onClick={shareRoom}>친구에게 공유</button>
-        <p className="lobby-label">문제 카테고리</p>
+        <p className="lobby-label">문제 카테고리 · 고르면 AI가 새 문제를 만듭니다</p>
         <div className="cat-grid">
           {BALANCE_CATEGORIES.map((cat) => (
             <button
@@ -237,14 +274,22 @@ export default function BalanceRoom({ code }: { code: string }) {
         {error ? <p className={error.includes('복사') ? 'notice' : 'error'}>{error}</p> : null}
         <div className="bottom-actions">
           {host ? (
-            <button
-              className="btn btn-primary"
-              onClick={() => commit((r) => startBalanceRound(r)).catch((err) => setError(errMessage(err, '시작하지 못했습니다')))}
-            >
-              {room.players.length < 2 ? '혼자 시작' : '게임 시작'}
-            </button>
+            <>
+              {canStartBalance(room) ? null : (
+                <p className="wait-copy">홀수 인원일 때만 시작됩니다. 지금 {room.players.length}명</p>
+              )}
+              <button
+                className="btn btn-primary"
+                disabled={making || !canStartBalance(room)}
+                onClick={() => startOrNext('start')}
+              >
+                {making ? '문제 만드는 중' : '시작'}
+              </button>
+            </>
           ) : (
-            <p className="wait-copy">방장이 시작하기를 기다리는 중</p>
+            <p className="wait-copy">
+              {canStartBalance(room) ? '방장이 시작하기를 기다리는 중' : '홀수 인원이 되면 시작할 수 있습니다'}
+            </p>
           )}
           <button className="btn btn-ghost" onClick={onLeave}>나가기</button>
         </div>
@@ -334,11 +379,8 @@ export default function BalanceRoom({ code }: { code: string }) {
           </button>
         ) : null}
         {room.phase === 'result' && host ? (
-          <button
-            className="btn btn-primary"
-            onClick={() => commit((r) => nextBalanceRound(r, playerId)).catch((err) => setError(errMessage(err, '다음으로 못 갔습니다')))}
-          >
-            다음 문제
+          <button className="btn btn-primary" disabled={making} onClick={() => startOrNext('next')}>
+            {making ? '문제 만드는 중' : '다음 문제'}
           </button>
         ) : room.phase === 'result' ? (
           <p className="wait-copy">방장이 다음 문제를 고르는 중</p>

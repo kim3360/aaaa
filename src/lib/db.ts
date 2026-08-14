@@ -190,7 +190,6 @@ export async function joinBalance(code: string, name: string) {
     const snap = await get(balanceRef(key));
     if (!snap.exists()) throw new Error('방이 없어요');
     const room = normalizeBalanceRoom(snap.val());
-    if (room && room.players.length >= room.maxPlayers) throw new Error('방이 가득 찼습니다');
     throw new Error('참가하지 못했습니다');
   }
   const room = normalizeBalanceRoom(result.snapshot.val());

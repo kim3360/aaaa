@@ -154,7 +154,7 @@ export default function BalanceLobby() {
               <span className={`status ${room.phase === 'lobby' ? 'wait' : 'play'}`}>
                 {phaseLabel(room.phase)}
               </span>
-              <span className="room-meta">👥 {room.players.length}/{room.maxPlayers || 20}</span>
+              <span className="room-meta">👥 {room.players.length}명</span>
             </div>
             <b>{room.title || room.code}</b>
             <span className="room-code-mini">{room.code}</span>
@@ -185,10 +185,10 @@ export default function BalanceLobby() {
       <section className="about">
         <h3>⚖️ 밸런스 게임이란?</h3>
         <p>
-          두 선택지 중 하나를 고릅니다. 모두 고르면 결과를 공개하고, 더 적은 쪽을 고른 사람이 한 잔 마십니다.
+          카테고리를 고르면 AI가 그 주제에 맞춰 문제를 만듭니다. 모두 고른 뒤 더 적은 쪽을 고른 사람이 한 잔 마십니다.
         </p>
         <div className="info-tags">
-          <span>👥 1~20명</span>
+          <span>👥 인원 제한 없음</span>
           <span>⚡ 한 문제씩</span>
           <span>🍻 소수파 1잔</span>
         </div>
