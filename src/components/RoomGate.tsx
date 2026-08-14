@@ -278,30 +278,60 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     }
   };
 
+  const shareRoom = async () => {
+    if (!room) return;
+    const url = `${location.origin}/room/${room.code}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: '주루마블',
+          text: `방 코드 ${room.code}로 들어와 주세요`,
+          url,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(`${room.code}\n${url}`);
+      setError('코드와 주소를 복사했어요');
+    } catch {
+      try {
+        await navigator.clipboard.writeText(`${room.code}\n${url}`);
+        setError('코드와 주소를 복사했어요');
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
   if (!ready) return <section className="screen" />;
   if (showSetup) return <SetupScreen />;
 
   if (needsJoin) {
     return (
-      <section className="screen">
+      <section className="screen join-screen">
         <div className="nav">
           <button className="back-btn" onClick={() => router.push('/')}>←</button>
           <span className="nav-mark">방 {roomCode}</span>
         </div>
         <h1 className="title">방에 들어가기</h1>
-        <p className="lead">이름만 적으면 바로 참가됩니다</p>
+        <p className="lead">별명만 적으면 바로 참가됩니다</p>
         <label className="field">
-          <span>내 이름</span>
+          <span>내 별명</span>
           <input
             maxLength={8}
-            placeholder="별명"
+            placeholder="테이블에서 부를 이름"
             value={name}
-            autoComplete="off"
+            autoComplete="nickname"
+            enterKeyHint="go"
             onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onJoin();
+            }}
           />
         </label>
-        <button className="btn btn-primary" onClick={onJoin}>참가</button>
         {error ? <p className="error">{error}</p> : null}
+        <div className="bottom-actions">
+          <button className="btn btn-primary" onClick={onJoin}>참가</button>
+        </div>
       </section>
     );
   }
@@ -319,7 +349,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
           <h1 className="title">대기실</h1>
           <span className="chip">{room.players.length}/{room.maxPlayers || MAX_PLAYERS}명</span>
         </div>
-        <p className="lobby-label">코드를 공유하면 바로 들어옵니다</p>
+        <p className="lobby-label">코드를 눌러 복사하거나, 친구에게 바로 공유하세요</p>
         <div
           className="room-code"
           onClick={async () => {
@@ -333,7 +363,8 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
         >
           {room.code}
         </div>
-        <p className="sub-copy">회원가입 없이 이름만 적으면 됩니다</p>
+        <button className="btn btn-ghost share-btn" onClick={shareRoom}>친구에게 공유</button>
+        <p className="sub-copy">회원가입 없이 별명만 적으면 됩니다</p>
         {room.phase === 'playing' ? (
           <button className="btn btn-primary" onClick={() => router.push(`/room/${roomCode}/play`)}>
             보드로 돌아가기
@@ -405,20 +436,22 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
             );
           })}
         </div>
-        {error ? <p className="error">{error}</p> : null}
-        {room.phase === 'lobby' && host ? (
-          <>
-            {!startReady && room.mode === 'team' ? (
-              <p className="wait-copy">팀을 둘 이상으로 나눠주세요</p>
-            ) : null}
-            <button className="btn btn-primary" disabled={!startReady} onClick={onStart}>
-              {room.players.length < 2 ? '혼자 시작' : '게임 시작'}
-            </button>
-          </>
-        ) : room.phase === 'lobby' ? (
-          <p className="wait-copy">방장이 시작하기를 기다리는 중</p>
-        ) : null}
-        <button className="btn btn-ghost" style={{ marginTop: 8 }} onClick={onLeave}>나가기</button>
+        {error ? <p className={error.includes('복사') ? 'notice' : 'error'}>{error}</p> : null}
+        <div className="bottom-actions">
+          {room.phase === 'lobby' && host ? (
+            <>
+              {!startReady && room.mode === 'team' ? (
+                <p className="wait-copy">팀을 둘 이상으로 나눠주세요</p>
+              ) : null}
+              <button className="btn btn-primary" disabled={!startReady} onClick={onStart}>
+                {room.players.length < 2 ? '혼자 시작' : '게임 시작'}
+              </button>
+            </>
+          ) : room.phase === 'lobby' ? (
+            <p className="wait-copy">방장이 시작하기를 기다리는 중</p>
+          ) : null}
+          <button className="btn btn-ghost" onClick={onLeave}>나가기</button>
+        </div>
       </section>
     );
   }

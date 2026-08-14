@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SetupScreen from './SetupScreen';
 import { bootDb, createRoom, joinRoom, subscribeRooms } from '@/lib/db';
@@ -29,9 +29,9 @@ function Stepper({
     <div className="stepper">
       <span>{label}</span>
       <div className="stepper-ctrl">
-        <button type="button" onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+        <button type="button" aria-label="줄이기" onClick={() => onChange(Math.max(min, value - 1))}>−</button>
         <b>{value}</b>
-        <button type="button" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+        <button type="button" aria-label="늘리기" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
       </div>
     </div>
   );
@@ -39,6 +39,7 @@ function Stepper({
 
 export default function HomeClient() {
   const router = useRouter();
+  const nickRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -64,6 +65,14 @@ export default function HomeClient() {
     setReady(true);
     return subscribeRooms(setRooms);
   }, []);
+
+  const needName = () => {
+    if (name.trim()) return false;
+    setError('먼저 별명을 적어주세요');
+    nickRef.current?.focus();
+    nickRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  };
 
   const openCreate = () => {
     if (!bootDb()) {
@@ -106,10 +115,7 @@ export default function HomeClient() {
       setError('이미 시작한 방입니다');
       return;
     }
-    if (!name.trim()) {
-      setError('이름을 적어주세요');
-      return;
-    }
+    if (needName()) return;
     try {
       saveName(name);
       const result = await joinRoom(room.code, name.trim());
@@ -130,10 +136,7 @@ export default function HomeClient() {
       await enterRoom(found);
       return;
     }
-    if (!name.trim()) {
-      setError('이름을 적어주세요');
-      return;
-    }
+    if (needName()) return;
     try {
       saveName(name);
       const result = await joinRoom(code, name.trim());
@@ -152,63 +155,79 @@ export default function HomeClient() {
   return (
     <section className="lobby-page">
       <header className="site-head">
-        <div className="crumb">
-          <span>🎲 보드게임</span>
-          <span className="crumb-sep">›</span>
-          <span>🍺 <span className="brand">주루마블</span> 술자리 보드게임</span>
-        </div>
-        <div className="site-tools">
-          <label className="guest-name">
-            <input
-              maxLength={8}
-              placeholder="별명"
-              value={name}
-              autoComplete="off"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <span className="guest-pill">Guest</span>
+        <div className="brand-lockup">
+          <span className="logo" aria-hidden>🍺</span>
+          <div>
+            <strong className="brand">주루마블</strong>
+            <small>술자리 보드게임</small>
+          </div>
         </div>
       </header>
 
+      <label className="field nick-field">
+        <span>내 별명</span>
+        <input
+          ref={nickRef}
+          maxLength={8}
+          placeholder="테이블에서 부를 이름"
+          value={name}
+          autoComplete="nickname"
+          enterKeyHint="done"
+          onChange={(e) => {
+            setName(e.target.value);
+            setError('');
+          }}
+        />
+      </label>
+
       <div className="list-head">
         <h2>방 목록</h2>
-        <button className="pill" onClick={openCreate}>+ 방 만들기</button>
+        <button className="pill desktop-only" onClick={openCreate}>+ 방 만들기</button>
       </div>
 
       {savedRoom ? (
-        <button className="room-card" onClick={() => router.push(`/room/${savedRoom}`)}>
-          <span className="status wait">내 방</span>
+        <button className="room-card mine" onClick={() => router.push(`/room/${savedRoom}`)}>
+          <div className="room-card-top">
+            <span className="status wait">내 방</span>
+            <span className="room-meta">이어서 입장</span>
+          </div>
           <b>{savedRoom}</b>
-          <span className="room-meta">이어서 입장</span>
         </button>
       ) : null}
 
       {rooms.length ? (
         rooms.map((room) => (
           <button className="room-card" key={room.code} onClick={() => enterRoom(room)}>
-            <span className={`status ${room.phase === 'playing' ? 'play' : 'wait'}`}>
-              {room.phase === 'playing' ? '게임중' : '대기중'}
-            </span>
+            <div className="room-card-top">
+              <span className={`status ${room.phase === 'playing' ? 'play' : 'wait'}`}>
+                {room.phase === 'playing' ? '게임중' : '대기중'}
+              </span>
+              <span className="room-meta">
+                👥 {room.players.length}/{room.maxPlayers || 8}
+                {room.mode === 'team' ? ` · ${room.teamCount}팀` : ''}
+              </span>
+            </div>
             <b>{room.title || room.code}</b>
-            <span className="room-meta">
-              👥 {room.players.length}/{room.maxPlayers || 8}명
-              {room.mode === 'team' ? ` · 팀전 ${room.teamCount}팀` : ''}
-              {' · '}{room.code}
-            </span>
+            <span className="room-code-mini">{room.code}</span>
           </button>
         ))
       ) : (
-        <div className="empty-rooms">아직 열린 방이 없습니다. 방을 만들어 보세요.</div>
+        <div className="empty-rooms">아직 열린 방이 없습니다. 아래에서 방을 만들어 보세요.</div>
       )}
 
       <div className="code-join">
         <input
           maxLength={4}
-          placeholder="코드로 참가"
+          placeholder="코드 4자리"
           value={code}
           autoComplete="off"
+          autoCapitalize="characters"
+          enterKeyHint="go"
+          inputMode="text"
           onChange={(e) => setCode(e.target.value.trim().toUpperCase())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onJoinCode();
+          }}
         />
         <button type="button" onClick={onJoinCode}>입장</button>
       </div>
@@ -220,10 +239,10 @@ export default function HomeClient() {
           주사위를 굴려 칸을 이동하는 술자리 보드게임입니다. 걸리면 마시고, 흑기사를 찾고, 즉석 게임으로 한 잔 더 갑니다.
         </p>
         <div className="info-tags">
-          <span>👥 인원 1~20명</span>
-          <span>⏱ 시간 30분~</span>
-          <span>🎲 방식 주사위 이동</span>
-          <span>🎉 장르 파티 · 술자리</span>
+          <span>👥 1~20명</span>
+          <span>⏱ 30분~</span>
+          <span>🎲 주사위</span>
+          <span>🎉 파티</span>
         </div>
       </section>
 
@@ -238,18 +257,24 @@ export default function HomeClient() {
       </section>
       <p className="foot">© 2026 주루마블</p>
 
+      <div className="home-dock">
+        <button className="pill dock-create" onClick={openCreate}>+ 방 만들기</button>
+      </div>
+
       {modal ? (
         <div className="modal-back" onClick={() => setModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="handle" />
             <h3>방 만들기</h3>
-            <p className="modal-lead">최대 인원과 팀전 인원을 정한 뒤 방을 엽니다</p>
+            <p className="modal-lead">최대 인원과 팀전을 정한 뒤 방을 엽니다</p>
             <label className="field">
               <span>방장 별명</span>
               <input
                 maxLength={8}
                 placeholder="별명"
                 value={name}
-                autoComplete="off"
+                autoComplete="nickname"
+                enterKeyHint="done"
                 onChange={(e) => setName(e.target.value)}
               />
             </label>
@@ -260,7 +285,7 @@ export default function HomeClient() {
             </label>
             {teamOn ? (
               <>
-                <Stepper label="🚩 팀전 인원" value={teamCount} min={2} max={4} onChange={setTeamCount} />
+                <Stepper label="🚩 팀 수" value={teamCount} min={2} max={4} onChange={setTeamCount} />
                 <p className="modal-hint">{teamCount}팀 · 팀당 약 {perTeam}명 · 총 {Math.max(maxPlayers, teamCount)}명</p>
               </>
             ) : null}

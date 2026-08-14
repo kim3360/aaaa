@@ -16,6 +16,10 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+body:has(.modal-back) {
+  overflow: hidden;
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -25,18 +29,21 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: Pretendard, 'Noto Sans KR', system-ui, sans-serif;
   user-select: none;
   overscroll-behavior: none;
   touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 button,
 input {
   font-family: inherit;
+  font-size: 16px;
 }
 
 input,
@@ -56,9 +63,9 @@ textarea {
 .screen {
   width: 100%;
   max-width: 430px;
-  height: 100%;
+  height: 100dvh;
   margin: 0 auto;
-  padding: calc(20px + var(--safe-top)) calc(20px + var(--safe-right)) calc(24px + var(--safe-bottom)) calc(20px + var(--safe-left));
+  padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(16px + var(--safe-left));
   display: flex;
   flex-direction: column;
   overflow: auto;
@@ -76,11 +83,11 @@ textarea {
 }
 
 .back-btn {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--line);
   background: var(--card);
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 18px;
   color: var(--text);
   cursor: pointer;
@@ -112,7 +119,7 @@ textarea {
 
 .title {
   margin: 0;
-  font-size: 34px;
+  font-size: clamp(26px, 8vw, 34px);
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 1.15;
@@ -205,12 +212,12 @@ textarea {
 }
 
 .btn-primary {
-  background: #18181b;
+  background: var(--accent);
   color: #fff;
 }
 
 .btn-gold {
-  background: #18181b;
+  background: var(--accent);
   color: #fff;
 }
 
@@ -243,7 +250,7 @@ textarea {
 
 .player-row {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   background: var(--card);
@@ -251,6 +258,7 @@ textarea {
   border-radius: 14px;
   padding: 10px;
   border-left: 3px solid var(--seat);
+  min-height: 56px;
 }
 
 .mode-row {
@@ -261,7 +269,7 @@ textarea {
 
 .mode-btn {
   flex: 1;
-  min-height: 40px;
+  min-height: 44px;
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--muted);
@@ -271,8 +279,8 @@ textarea {
 }
 
 .mode-btn.on {
-  background: #18181b;
-  border-color: #18181b;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -282,18 +290,18 @@ textarea {
 }
 
 .team-chip {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-radius: 8px;
-  font-size: 12px;
+  border-radius: 10px;
+  font-size: 16px;
   opacity: 0.4;
   padding: 0;
 }
 
 .team-chip.on {
   opacity: 1;
-  outline: 2px solid #18181b;
+  outline: 2px solid var(--accent);
 }
 
 .seat {
@@ -316,10 +324,9 @@ textarea {
 }
 
 .game {
-  padding: calc(12px + var(--safe-top)) calc(12px + var(--safe-right)) calc(12px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left));
   gap: 8px;
   overflow: hidden;
-  max-width: none;
 }
 
 .topbar {
@@ -339,9 +346,10 @@ textarea {
   color: var(--text);
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 8px 12px;
   font-size: 12px;
   font-weight: 600;
+  min-height: 36px;
 }
 
 .board-wrap {
@@ -501,13 +509,13 @@ textarea {
 }
 
 .dice {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
+  width: 80px;
+  height: 80px;
+  border-radius: 18px;
   border: 1px solid var(--line);
   background: #fafafa;
   color: #18181b;
-  font-size: 36px;
+  font-size: 40px;
   cursor: pointer;
 }
 
@@ -564,7 +572,7 @@ textarea {
   background: #fff;
   border-radius: 24px 24px 0 0;
   border-top: 1px solid var(--line);
-  padding: 12px 18px calc(18px + var(--safe-bottom));
+  padding: 12px 16px calc(20px + var(--safe-bottom));
 }
 
 .handle {
@@ -606,10 +614,11 @@ textarea {
 .pick {
   border: 0;
   border-radius: 14px;
-  padding: 14px 10px;
-  font-size: 15px;
+  padding: 16px 10px;
+  font-size: 16px;
   font-weight: 700;
   color: #09090b;
+  min-height: 52px;
 }
 
 .mini-stage {
@@ -641,7 +650,7 @@ textarea {
 
 .rps-btn {
   font-size: 32px;
-  min-height: 72px;
+  min-height: 76px;
   border-radius: 16px;
   border: 1px solid var(--line);
   background: #f4f4f5;
@@ -720,11 +729,11 @@ textarea {
 
 .field input {
   width: 100%;
-  min-height: 48px;
+  min-height: 52px;
   border: 1px solid var(--line);
   background: var(--card);
   color: var(--text);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 0 14px;
   font-size: 16px;
   outline: none;
@@ -744,6 +753,13 @@ textarea {
   margin: 8px 0 0;
 }
 
+.notice {
+  color: #6d28d9;
+  font-size: 13px;
+  text-align: center;
+  margin: 8px 0 0;
+}
+
 .lobby-label,
 .sub-copy,
 .wait-copy {
@@ -758,7 +774,7 @@ textarea {
 }
 
 .room-code {
-  font-size: 40px;
+  font-size: clamp(32px, 10vw, 40px);
   font-weight: 800;
   letter-spacing: 0.2em;
   text-align: center;
@@ -766,9 +782,13 @@ textarea {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 16px 8px;
+  padding: 18px 8px;
   cursor: pointer;
   margin-bottom: 8px;
+}
+
+.share-btn {
+  margin-bottom: 10px;
 }
 
 .lobby-list {
@@ -806,13 +826,13 @@ textarea {
 
 .turn-banner.mine {
   color: #fff;
-  background: #18181b;
-  border-color: #18181b;
+  background: var(--accent);
+  border-color: var(--accent);
   font-weight: 700;
 }
 
 .me-stat {
-  outline: 1px solid #18181b;
+  outline: 1px solid var(--accent);
 }
 
 .setup-steps {
@@ -832,7 +852,7 @@ input[type='number'] {
   color: #09090b;
 }
 
-@media (orientation: landscape) {
+@media (orientation: landscape) and (min-height: 500px) {
   .screen {
     max-width: 720px;
   }
@@ -877,10 +897,10 @@ input[type='number'] {
 
 .lobby-page {
   width: 100%;
-  max-width: 860px;
+  max-width: 430px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: calc(22px + var(--safe-top)) calc(24px + var(--safe-right)) calc(32px + var(--safe-bottom)) calc(24px + var(--safe-left));
+  padding: calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) calc(96px + var(--safe-bottom)) calc(16px + var(--safe-left));
 }
 
 .site-head {
@@ -888,70 +908,62 @@ input[type='number'] {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 28px;
-  flex-wrap: wrap;
+  margin-bottom: 16px;
 }
 
-.crumb {
+.brand-lockup {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
+  gap: 10px;
 }
 
-.crumb-sep {
-  color: #c4b5fd;
-  font-weight: 500;
+.brand-lockup .logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+}
+
+.brand-lockup small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 1px;
 }
 
 .brand {
+  display: block;
   color: var(--accent);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
 }
 
-.site-tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.guest-name input {
-  width: 108px;
-  min-height: 36px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  border-radius: 999px;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 600;
-  outline: none;
-}
-
-.guest-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: var(--pink);
-  color: var(--pink-text);
-  font-size: 12px;
-  font-weight: 700;
+.nick-field {
+  margin-bottom: 18px;
 }
 
 .list-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 8px 0 14px;
+  margin: 4px 0 12px;
 }
 
 .list-head h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.03em;
+}
+
+.desktop-only {
+  display: none;
 }
 
 .pill {
@@ -960,11 +972,11 @@ input[type='number'] {
   background: var(--accent);
   color: #fff;
   border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 14px;
+  padding: 12px 18px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  min-height: 40px;
+  min-height: 48px;
   width: auto;
 }
 
@@ -976,26 +988,47 @@ input[type='number'] {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   text-align: left;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 16px 18px;
-  margin-bottom: 10px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
   box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04);
   cursor: pointer;
   color: inherit;
+  min-height: 72px;
+}
+
+.room-card.mine {
+  border-color: #ddd6fe;
+  background: #faf8ff;
 }
 
 .room-card:active {
-  transform: scale(0.995);
+  transform: scale(0.99);
 }
 
 .room-card b {
   font-size: 16px;
   font-weight: 800;
+}
+
+.room-card-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.room-code-mini {
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .status {
@@ -1025,8 +1058,8 @@ input[type='number'] {
 .empty-rooms {
   background: var(--card);
   border: 1px dashed var(--line);
-  border-radius: 18px;
-  padding: 28px 16px;
+  border-radius: 16px;
+  padding: 22px 16px;
   text-align: center;
   color: var(--muted);
   font-size: 14px;
@@ -1037,18 +1070,18 @@ input[type='number'] {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px;
-  margin: 8px 0 6px;
+  margin: 10px 0 6px;
 }
 
 .code-join input {
-  min-height: 44px;
+  min-height: 48px;
   border: 1px solid var(--line);
   background: var(--card);
   border-radius: 999px;
   padding: 0 16px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   outline: none;
 }
 
@@ -1056,26 +1089,27 @@ input[type='number'] {
   border: 1px solid var(--line);
   background: var(--card);
   border-radius: 999px;
-  padding: 0 16px;
-  font-size: 14px;
+  padding: 0 18px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+  min-height: 48px;
 }
 
 .about,
 .howto {
-  margin-top: 36px;
+  margin-top: 28px;
 }
 
 .about h3,
 .howto h3 {
   margin: 0 0 10px;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
 }
 
 .about p {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: var(--muted);
   font-size: 14px;
   line-height: 1.7;
@@ -1101,28 +1135,35 @@ input[type='number'] {
 }
 
 .howto-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
   gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  margin: 0 -16px;
+  padding: 0 16px 6px;
+  -webkit-overflow-scrolling: touch;
 }
 
 .howto-card {
+  flex: 0 0 78%;
+  scroll-snap-align: start;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 16px 14px;
-  font-size: 13px;
-  line-height: 1.55;
+  padding: 14px;
+  font-size: 14px;
+  line-height: 1.5;
   color: #3f3f46;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 10px;
-  min-height: 112px;
+  min-height: 64px;
 }
 
 .howto-card span {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
@@ -1130,31 +1171,52 @@ input[type='number'] {
   place-items: center;
   font-size: 12px;
   font-weight: 800;
+  flex-shrink: 0;
 }
 
 .foot {
   text-align: center;
   color: #a1a1aa;
   font-size: 12px;
-  margin: 36px 0 0;
+  margin: 28px 0 0;
+}
+
+.home-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 10px 16px calc(10px + var(--safe-bottom));
+  background: linear-gradient(180deg, transparent, var(--bg) 28%);
+}
+
+.dock-create {
+  width: 100%;
+  max-width: 430px;
+  display: block;
+  margin: 0 auto;
+  min-height: 52px;
+  font-size: 16px;
 }
 
 .modal-back {
   position: fixed;
   inset: 0;
   background: rgba(24, 24, 27, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 20px;
+  display: flex;
+  align-items: flex-end;
   z-index: 40;
 }
 
 .modal {
-  width: min(420px, 100%);
+  width: 100%;
   background: #fff;
-  border-radius: 24px;
-  padding: 24px 22px 20px;
-  box-shadow: 0 20px 50px rgba(24, 24, 27, 0.18);
+  border-radius: 24px 24px 0 0;
+  padding: 8px 20px calc(20px + var(--safe-bottom));
+  box-shadow: 0 -12px 40px rgba(24, 24, 27, 0.16);
+  max-height: min(92dvh, 720px);
+  overflow: auto;
 }
 
 .modal h3 {
@@ -1164,7 +1226,7 @@ input[type='number'] {
 }
 
 .modal-lead {
-  margin: 8px 0 18px;
+  margin: 8px 0 16px;
   color: var(--muted);
   font-size: 13px;
   line-height: 1.5;
@@ -1175,7 +1237,7 @@ input[type='number'] {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--line);
   font-size: 15px;
   font-weight: 700;
@@ -1188,19 +1250,19 @@ input[type='number'] {
 }
 
 .stepper-ctrl button {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--line);
   background: #fafafa;
-  border-radius: 10px;
-  font-size: 18px;
+  border-radius: 12px;
+  font-size: 22px;
   cursor: pointer;
 }
 
 .stepper-ctrl b {
-  min-width: 24px;
+  min-width: 28px;
   text-align: center;
-  font-size: 18px;
+  font-size: 20px;
 }
 
 .toggle {
@@ -1208,13 +1270,14 @@ input[type='number'] {
   align-items: center;
   gap: 10px;
   margin: 14px 0 4px;
-  font-size: 15px;
+  min-height: 44px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .toggle input {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   accent-color: var(--accent);
 }
 
@@ -1226,31 +1289,77 @@ input[type='number'] {
 
 .modal-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.4fr;
   gap: 8px;
-  margin-top: 20px;
+  margin-top: 18px;
 }
 
 .modal-actions .btn,
 .modal-actions .pill {
   width: 100%;
   border-radius: 999px;
+  min-height: 52px;
 }
 
-@media (max-width: 720px) {
-  .howto-grid {
-    grid-template-columns: 1fr 1fr;
+.bottom-actions {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+  padding-top: 12px;
+  padding-bottom: 4px;
+  background: linear-gradient(180deg, transparent, var(--bg) 18%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.join-screen .title {
+  font-size: 28px;
+}
+
+@media (min-width: 760px) {
+  .lobby-page {
+    max-width: 760px;
+    padding: calc(22px + var(--safe-top)) 24px calc(40px + var(--safe-bottom));
   }
-}
 
-@media (max-width: 480px) {
+  .home-dock {
+    display: none;
+  }
+
+  .desktop-only {
+    display: inline-flex;
+    align-items: center;
+  }
+
   .howto-grid {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    overflow: visible;
+    margin: 0;
+    padding: 0;
   }
 
   .howto-card {
-    min-height: 0;
-    flex-direction: row;
+    flex: none;
+    flex-direction: column;
+    align-items: flex-start;
+    min-height: 112px;
+  }
+
+  .modal-back {
     align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal {
+    width: min(420px, 100%);
+    border-radius: 24px;
+    padding: 20px 22px 20px;
+  }
+
+  .modal .handle {
+    display: none;
   }
 }
