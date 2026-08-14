@@ -80,7 +80,7 @@ function render() {
 function renderHome() {
   app.innerHTML = `
     <section class="screen home">
-      <div>
+      <div class="home-left">
         <div class="lanterns"><span class="lantern"></span><span class="lantern"></span><span class="lantern"></span></div>
         <div class="hero">
           <div class="bottle">🍶</div>
@@ -88,6 +88,8 @@ function renderHome() {
           <p class="tag">걸리면 마신다 · 안 걸리면 더 마신다</p>
           <p class="sub">휴대폰 하나로 하는 술자리 보드게임<br>주사위 굴리고, 칸 효과 수행하고, 다음 사람에게 넘기세요</p>
         </div>
+      </div>
+      <div class="home-right">
         <div class="rules">
           <h2>진행 방식</h2>
           <ul>
@@ -97,8 +99,8 @@ function renderHome() {
             <li>한 바퀴 돌면 축하주 1잔</li>
           </ul>
         </div>
+        <button class="btn btn-primary" id="go-setup">인원 정하고 시작</button>
       </div>
-      <button class="btn btn-primary" id="go-setup">인원 정하고 시작</button>
     </section>
   `;
   app.querySelector('#go-setup').onclick = () => {
@@ -109,7 +111,7 @@ function renderHome() {
 
 function renderSetup() {
   app.innerHTML = `
-    <section class="screen">
+    <section class="screen setup">
       <div class="setup-head">
         <h1 class="title">누가 마셔</h1>
         <span class="chip">${state.players.length}명</span>
