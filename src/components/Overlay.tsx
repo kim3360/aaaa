@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TEAM_META } from '@/lib/data';
-import type { GameAction, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
+import type { GameAction, MiniGame, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
 
 function ActorWait({ name }: { name: string }) {
   return <p className="wait-copy">{name}가 선택하는 중</p>;
@@ -259,24 +259,32 @@ function OverlayBody({
     );
   }
 
-  if (o.type === 'spin-player' || o.type === 'spin-roulette') {
+  if (o.type === 'spin-player' || o.type === 'spin-roulette' || o.type === 'spin-minigame') {
     const items =
       o.type === 'spin-player'
         ? ((o.loop ?? []) as SpinItem[]).map((x, i) => (
             <div className="spin-item" style={{ color: x.color }} key={i}>{x.name}</div>
           ))
-        : ((o.loop ?? []) as RoulettePrize[]).map((p, i) => (
-            <div className="spin-item" key={i}>{p.emoji} {p.label}</div>
-          ));
+        : o.type === 'spin-minigame'
+          ? ((o.loop ?? []) as MiniGame[]).map((g, i) => (
+              <div className="spin-item" key={i}>{g.emoji} {g.name}</div>
+            ))
+          : ((o.loop ?? []) as RoulettePrize[]).map((p, i) => (
+              <div className="spin-item" key={i}>{p.emoji} {p.label}</div>
+            ));
+    const heading = o.type === 'spin-roulette' ? '황금 룰렛' : o.type === 'spin-minigame' ? '랜덤 게임' : '랜덤 원샷';
     return (
       <>
         <div className="handle" />
-        <div className="event-emoji">{o.type === 'spin-roulette' ? '👑' : '🎯'}</div>
-        <h2 className="event-title">{o.type === 'spin-roulette' ? '황금 룰렛' : '랜덤 원샷'}</h2>
+        <div className="event-emoji">{o.type === 'spin-roulette' ? '👑' : o.type === 'spin-minigame' ? '🎲' : '🎯'}</div>
+        <h2 className="event-title">{heading}</h2>
         <p className="event-desc">운명을 뽑는 중</p>
         <div className="spin">
           <div className="spin-track" ref={spinRef}>{items}</div>
         </div>
+        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => onAct({ op: 'spin-done' })}>
+          결과 보기
+        </button>
       </>
     );
   }
@@ -385,6 +393,31 @@ function OverlayBody({
             <p className="wait-copy">폭탄이 오면 넘기세요</p>
           )}
         </div>
+      </>
+    );
+  }
+
+  if (o.type === 'subway') {
+    const speaker = o.turn ?? 0;
+    return (
+      <>
+        <div className="handle" />
+        <h2 className="event-title">지하철 게임</h2>
+        <p className="event-desc">이 호선 역을 순서대로 말하세요. 막히면 1잔</p>
+        <div className="mini-stage">
+          <div className="subway-line" style={{ background: o.hint || '#0052A4' }}>
+            {o.text}
+          </div>
+          <p className="mini-help">{playerName(room, speaker)} 차례</p>
+        </div>
+        {mine === speaker ? (
+          <div className="btn-row">
+            <button className="btn btn-soju" onClick={() => onAct({ op: 'subway', ok: true })}>성공 · 다음</button>
+            <button className="btn btn-primary" onClick={() => onAct({ op: 'subway', ok: false })}>실패</button>
+          </div>
+        ) : (
+          <ActorWait name={playerName(room, speaker)} />
+        )}
       </>
     );
   }

@@ -96,6 +96,12 @@ export const MINIGAMES: MiniGame[] = [
     desc: '초성을 보고 단어를 말한다. 시간 안에 못하면 1잔.',
   },
   {
+    id: 'subway',
+    name: '지하철 게임',
+    emoji: '🚇',
+    desc: '수도권 호선이 나오면 그 노선 역을 순서대로 말한다. 막히면 마신다.',
+  },
+  {
     id: 'death',
     name: '더 게임 오브 데스',
     emoji: '☠️',
@@ -113,6 +119,32 @@ export const ROULETTE_PRIZES: RoulettePrize[] = [
   { label: '본인 1잔', emoji: '🍺', type: 'drink', amount: 1 },
   { label: '랜덤 게임', emoji: '🎲', type: 'minigame' },
 ];
+
+export const SUBWAY_LINES = [
+  { name: '1호선', color: '#0052A4' },
+  { name: '2호선', color: '#00A84D' },
+  { name: '3호선', color: '#EF7C1C' },
+  { name: '4호선', color: '#00A5DE' },
+  { name: '5호선', color: '#996CAC' },
+  { name: '6호선', color: '#CD7C2F' },
+  { name: '7호선', color: '#747F00' },
+  { name: '8호선', color: '#E6186C' },
+  { name: '9호선', color: '#BDB092' },
+  { name: '경의·중앙선', color: '#77C4A3' },
+  { name: '수인·분당선', color: '#F5A201' },
+  { name: '신분당선', color: '#D31145' },
+  { name: '경춘선', color: '#0C8E72' },
+  { name: '공항철도', color: '#0090D2' },
+  { name: '경강선', color: '#003DA5' },
+  { name: '서해선', color: '#8BE800' },
+  { name: '신림선', color: '#6789CA' },
+  { name: '우이신설선', color: '#B7C452' },
+  { name: '김포골드라인', color: '#A97D25' },
+  { name: '인천 1호선', color: '#7CA8D5' },
+  { name: '인천 2호선', color: '#ED8B00' },
+  { name: '용인 에버라인', color: '#509F22' },
+  { name: '의정부 경전철', color: '#FDA600' },
+] as const;
 
 export const CHOSUNG_ROUNDS: ChosungRound[] = [
   { hint: '과일', text: 'ㅅㄱ' },

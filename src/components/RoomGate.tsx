@@ -85,7 +85,6 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   const playerIdRef = useRef('');
   const unsubRef = useRef<(() => void) | null>(null);
   const moveLock = useRef(false);
-  const armedUntil = useRef(0);
   const diceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevPhase = useRef<'lobby' | 'playing' | null>(null);
 
@@ -201,25 +200,27 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
       }
     }
   };
+  const actRef = useRef(act);
+  actRef.current = act;
 
   useEffect(() => {
     const o = room?.overlay;
     if (!o) return undefined;
     const until = o.until || o.explodeAt || o.endsAt;
-    if (!until || until === armedUntil.current) return undefined;
-    armedUntil.current = until;
     const op: GameAction['op'] | null =
       o.type === 'bomb'
         ? 'bomb-explode'
         : o.type === 'chosung'
           ? 'chosung-timeout'
-          : o.type?.startsWith('spin')
+          : o.type === 'spin-player' || o.type === 'spin-roulette' || o.type === 'spin-minigame'
             ? 'spin-done'
             : null;
-    if (!op) return undefined;
-    const id = setTimeout(() => act({ op } as GameAction), Math.max(0, until - Date.now()));
+    if (!op || !until) return undefined;
+    const id = setTimeout(() => {
+      actRef.current({ op } as GameAction);
+    }, Math.max(50, until - Date.now()));
     return () => clearTimeout(id);
-  }, [room?.overlay]);
+  }, [room?.overlay?.type, room?.overlay?.until, room?.overlay?.explodeAt, room?.overlay?.endsAt]);
 
   const onJoin = async () => {
     if (!name.trim()) {

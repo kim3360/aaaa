@@ -5,10 +5,11 @@ import {
   MINIGAMES,
   ROULETTE_PRIZES,
   CHOSUNG_ROUNDS,
+  SUBWAY_LINES,
   MAX_PLAYERS,
   TEAM_META,
 } from './data';
-import type { GameAction, MiniState, OverlayState, PlayMode, Player, Room, RoomOptions, RoulettePrize, Tile } from './types';
+import type { GameAction, MiniGame, MiniState, OverlayState, PlayMode, Player, Room, RoomOptions, RoulettePrize, Tile } from './types';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -208,13 +209,17 @@ function shuffle<T>(list: T[]) {
 
 function startRandomMinigame(room: Room) {
   const game = MINIGAMES[rand(MINIGAMES.length)];
+  const loop = shuffle([...MINIGAMES, ...MINIGAMES]);
+  loop.push(game);
   room.overlay = {
-    type: 'minigame-intro',
+    type: 'spin-minigame',
+    loop,
+    gameId: game.id,
     emoji: game.emoji,
     title: game.name,
     desc: game.desc,
-    gameId: game.id,
     actor: room.current,
+    until: Date.now() + 2100,
   };
 }
 
@@ -380,6 +385,16 @@ function runMinigame(room: Room, id: string) {
       endsAt,
       actor: room.current,
     };
+  } else if (id === 'subway') {
+    const line = SUBWAY_LINES[rand(SUBWAY_LINES.length)];
+    room.mini = { id, text: line.name, hint: line.color, turn: room.current };
+    room.overlay = {
+      type: 'subway',
+      text: line.name,
+      hint: line.color,
+      turn: room.current,
+      actor: room.current,
+    };
   } else {
     pickOrFallback(room, room.current, '더 게임 오브 데스', '한 명을 지목하세요. 2잔', others(room, room.current, 'rival'), 'death');
   }
@@ -473,17 +488,35 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
   const overlay = room.overlay;
   if (op === 'spin-done') {
     if (overlay?.type === 'spin-player') {
-      if (overlay.winner == null) return;
-      addDrinks(room, overlay.winner, 1);
-      finishTurn(room, `운명의 원샷: ${pname(room, overlay.winner)}`);
+      const loop = overlay.loop;
+      const last = loop?.[loop.length - 1];
+      const winner = overlay.winner ?? (last && 'i' in last ? last.i : undefined);
+      if (winner == null || !room.players[winner]) return room;
+      addDrinks(room, winner, 1);
+      finishTurn(room, `운명의 원샷: ${pname(room, winner)}`);
       return room;
     }
     if (overlay?.type === 'spin-roulette') {
-      if (!overlay.prize) return;
+      if (!overlay.prize) return room;
       applyPrize(room, overlay.prize);
       return room;
     }
-    return;
+    if (overlay?.type === 'spin-minigame') {
+      const game =
+        MINIGAMES.find((g) => g.id === overlay.gameId) ||
+        (overlay.loop?.[overlay.loop.length - 1] as MiniGame | undefined);
+      if (!game || !('id' in game)) return room;
+      room.overlay = {
+        type: 'minigame-intro',
+        emoji: game.emoji,
+        title: game.name,
+        desc: game.desc,
+        gameId: game.id,
+        actor: overlay.actor ?? room.current,
+      };
+      return room;
+    }
+    return room;
   }
   if (op === 'bomb-explode') {
     if (overlay?.type !== 'bomb' || !room.mini || room.mini.exploded) return;
@@ -588,6 +621,15 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
     const holder = ((overlay.holder ?? 0) + 1) % room.players.length;
     room.mini.holder = holder;
     room.overlay = { ...overlay, holder };
+  } else if (op === 'subway' && overlay.type === 'subway' && playerIndex === overlay.turn) {
+    if (data.ok) {
+      const turn = ((overlay.turn ?? 0) + 1) % room.players.length;
+      room.mini = { ...(room.mini || { id: 'subway' }), turn };
+      room.overlay = { ...overlay, turn };
+    } else {
+      addDrinks(room, playerIndex, 1);
+      finishTurn(room, `${pname(room, playerIndex)} 지하철 실패. 1잔`);
+    }
   } else if (op === 'chosung' && overlay.type === 'chosung' && playerIndex === overlay.actor) {
     if (data.ok) finishTurn(room, '초성 성공. 넘어갑니다');
     else {

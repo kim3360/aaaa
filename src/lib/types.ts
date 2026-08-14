@@ -70,11 +70,13 @@ export type OverlayType =
   | 'sing'
   | 'spin-player'
   | 'spin-roulette'
+  | 'spin-minigame'
   | 'baskin'
   | 'nunchi'
   | 'updown'
   | 'bomb'
   | 'chosung'
+  | 'subway'
   | 'rps'
   | 'rps-tie';
 
@@ -93,7 +95,7 @@ export type OverlayState = {
   ids?: number[];
   kind?: string;
   extra?: number | string | null;
-  loop?: Array<SpinItem | RoulettePrize>;
+  loop?: Array<SpinItem | RoulettePrize | MiniGame>;
   winner?: number;
   until?: number;
   n?: number;
@@ -188,6 +190,7 @@ export type GameAction =
   | { op: 'baskin'; k: number }
   | { op: 'updown'; guess: number }
   | { op: 'chosung'; ok: boolean }
+  | { op: 'subway'; ok: boolean }
   | { op: 'rps-pick'; v: number };
 
 export type FirebaseConfig = {
