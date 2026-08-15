@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import AnalyticsBoot from '@/components/AnalyticsBoot';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -43,7 +44,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body>
-        <div className="phone-frame">{children}</div>
+        <div className="phone-frame">
+          <AnalyticsBoot />
+          {children}
+        </div>
       </body>
     </html>
   );

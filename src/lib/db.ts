@@ -1,6 +1,7 @@
 'use client';
 
 import { initializeApp, type FirebaseApp } from 'firebase/app';
+import { getAnalytics, isSupported } from 'firebase/analytics';
 import {
   get,
   getDatabase,
@@ -34,6 +35,7 @@ export function loadConfig(): FirebaseConfig | null {
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET?.trim() || '',
     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID?.trim() || '',
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID?.trim() || '',
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID?.trim() || '',
   };
   if (env.apiKey && env.databaseURL) return env;
   return null;
@@ -50,7 +52,20 @@ export function bootDb() {
   const config = loadConfig();
   if (!config) return false;
   initDb(config);
+  bootAnalytics();
   return true;
+}
+
+export function bootAnalytics() {
+  if (typeof window === 'undefined') return;
+  const config = loadConfig();
+  if (!config) return;
+  initDb(config);
+  if (!config.measurementId) return;
+  void isSupported().then((ok) => {
+    if (!ok || !app) return;
+    getAnalytics(app);
+  });
 }
 
 function requireDb() {
