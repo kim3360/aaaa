@@ -949,6 +949,44 @@ textarea {
   font-size: 14px;
 }
 
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
+}
+
+.lobby-grid .player-row {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 18px 8px 10px;
+  min-height: 76px;
+  text-align: left;
+}
+
+.lobby-grid .host-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.lobby-grid .lobby-name {
+  font-size: 12px;
+  line-height: 1.35;
+  word-break: keep-all;
+  min-width: 0;
+}
+
 .online {
   font-size: 11px;
   color: #71717a;

@@ -312,13 +312,13 @@ export default function BalanceRoom({ code }: { code: string }) {
             </button>
           ))}
         </div>
-        <div className="lobby-list">
+        <div className="lobby-list lobby-grid">
           {room.players.map((p) => (
             <div className="player-row" style={{ '--seat': p.color } as CSSProperties} key={p.id}>
+              {p.id === room.hostId ? <span className="host-badge">방장</span> : null}
               <span className="seat pawn-seat">{p.icon}</span>
               <span className="lobby-name">
                 {p.name}
-                {p.id === room.hostId ? ' · 방장' : ''}
                 {p.id === playerId ? ' · 나' : ''}
               </span>
             </div>
