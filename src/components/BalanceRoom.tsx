@@ -7,9 +7,14 @@ import {
   BALANCE_CATEGORIES,
   canStartBalance,
   categoryLabel,
+  DEFAULT_BALANCE_ROUNDS,
+  hasMoreBalanceRounds,
+  MAX_BALANCE_ROUNDS,
+  MIN_BALANCE_ROUNDS,
   nextBalanceRound,
   revealBalance,
   setBalanceCategory,
+  setBalanceRounds,
   startBalanceRound,
   voteBalance,
 } from '@/lib/balance';
@@ -128,6 +133,10 @@ export default function BalanceRoom({ code }: { code: string }) {
       setError('홀수 인원일 때만 시작할 수 있습니다');
       return;
     }
+    if (kind === 'next' && room && !hasMoreBalanceRounds(room)) {
+      setError('설정한 횟수를 모두 진행했습니다');
+      return;
+    }
     setMaking(true);
     setError('');
     try {
@@ -241,6 +250,39 @@ export default function BalanceRoom({ code }: { code: string }) {
           {room.code}
         </div>
         <button className="btn btn-ghost share-btn" onClick={shareRoom}>친구에게 공유</button>
+        <p className="lobby-label">진행 횟수 · {room.totalRounds || DEFAULT_BALANCE_ROUNDS}문제</p>
+        {host ? (
+          <div className="stepper" style={{ marginBottom: 14 }}>
+            <span>🎯 몇 번 할까요</span>
+            <div className="stepper-ctrl">
+              <button
+                type="button"
+                aria-label="줄이기"
+                disabled={(room.totalRounds || DEFAULT_BALANCE_ROUNDS) <= MIN_BALANCE_ROUNDS}
+                onClick={() =>
+                  commit((r) => setBalanceRounds(r, playerId, (r.totalRounds || DEFAULT_BALANCE_ROUNDS) - 1)).catch((err) =>
+                    setError(errMessage(err, '횟수를 바꾸지 못했습니다')),
+                  )
+                }
+              >
+                −
+              </button>
+              <b>{room.totalRounds || DEFAULT_BALANCE_ROUNDS}</b>
+              <button
+                type="button"
+                aria-label="늘리기"
+                disabled={(room.totalRounds || DEFAULT_BALANCE_ROUNDS) >= MAX_BALANCE_ROUNDS}
+                onClick={() =>
+                  commit((r) => setBalanceRounds(r, playerId, (r.totalRounds || DEFAULT_BALANCE_ROUNDS) + 1)).catch((err) =>
+                    setError(errMessage(err, '횟수를 바꾸지 못했습니다')),
+                  )
+                }
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ) : null}
         <p className="lobby-label">문제 카테고리 · 고르면 AI가 새 문제를 만듭니다</p>
         <div className="cat-grid">
           {BALANCE_CATEGORIES.map((cat) => (
@@ -310,7 +352,7 @@ export default function BalanceRoom({ code }: { code: string }) {
         <span className="chip">주량 {totalDrinks}잔</span>
       </div>
       <p className="balance-round">
-        {categoryLabel(room.category).emoji} {categoryLabel(room.category).name} · {room.round}번째 · {votedCount}명 선택
+        {categoryLabel(room.category).emoji} {categoryLabel(room.category).name} · {room.round}/{room.totalRounds || DEFAULT_BALANCE_ROUNDS} · {votedCount}명 선택
       </p>
 
       {q ? (
@@ -378,12 +420,16 @@ export default function BalanceRoom({ code }: { code: string }) {
             지금 결과 보기
           </button>
         ) : null}
-        {room.phase === 'result' && host ? (
+        {room.phase === 'result' && host && hasMoreBalanceRounds(room) ? (
           <button className="btn btn-primary" disabled={making} onClick={() => startOrNext('next')}>
             {making ? '문제 만드는 중' : '다음 문제'}
           </button>
+        ) : room.phase === 'result' && host ? (
+          <p className="wait-copy">{room.totalRounds}문제 끝. 주량을 확인하고 종료하세요</p>
         ) : room.phase === 'result' ? (
-          <p className="wait-copy">방장이 다음 문제를 고르는 중</p>
+          <p className="wait-copy">
+            {hasMoreBalanceRounds(room) ? '방장이 다음 문제를 고르는 중' : `${room.totalRounds}문제 끝났습니다`}
+          </p>
         ) : null}
         {host ? (
           <button className="btn btn-ghost" onClick={() => deleteBalanceRoom(room.code).then(() => router.push('/balance'))}>

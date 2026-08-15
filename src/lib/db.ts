@@ -160,9 +160,9 @@ function balanceRef(code: string) {
   return ref(requireDb(), `balanceRooms/${code}`);
 }
 
-export async function createBalanceRoom(name: string) {
+export async function createBalanceRoom(name: string, totalRounds?: number) {
   for (let i = 0; i < 10; i += 1) {
-    const draft = createBalanceDraft(name);
+    const draft = createBalanceDraft(name, totalRounds);
     const result = await runTransaction(balanceRef(draft.room.code), (current) => {
       if (current) return;
       return clean(draft.room);

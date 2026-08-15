@@ -17,6 +17,15 @@ export const BALANCE_CATEGORIES: Array<{ id: BalanceCategoryId; name: string; em
   { id: 'extreme', name: '극단', emoji: '🔥' },
 ];
 
+export const MIN_BALANCE_ROUNDS = 1;
+export const MAX_BALANCE_ROUNDS = 30;
+export const DEFAULT_BALANCE_ROUNDS = 10;
+
+export function clampBalanceRounds(n: number) {
+  const value = Math.round(Number(n) || DEFAULT_BALANCE_ROUNDS);
+  return Math.min(MAX_BALANCE_ROUNDS, Math.max(MIN_BALANCE_ROUNDS, value));
+}
+
 export function categoryLabel(id: BalanceCategoryId = 'all') {
   return BALANCE_CATEGORIES.find((c) => c.id === id) || BALANCE_CATEGORIES[0];
 }
@@ -28,7 +37,7 @@ function toArray(value: unknown): unknown[] {
   return [];
 }
 
-export function emptyBalanceRoom(code: string, host: Player, title?: string): BalanceRoom {
+export function emptyBalanceRoom(code: string, host: Player, title?: string, totalRounds = DEFAULT_BALANCE_ROUNDS): BalanceRoom {
   return {
     code,
     title: title || `${host.name}의 밸런스`,
@@ -43,6 +52,7 @@ export function emptyBalanceRoom(code: string, host: Player, title?: string): Ba
     usedTexts: [],
     result: null,
     round: 0,
+    totalRounds: clampBalanceRounds(totalRounds),
     category: 'all',
   };
 }
@@ -76,16 +86,17 @@ export function normalizeBalanceRoom(raw: unknown): BalanceRoom | null {
     usedTexts: toArray(data.usedTexts).map(String),
     result: (data.result as BalanceResult) || null,
     round: Number(data.round) || 0,
+    totalRounds: clampBalanceRounds(Number(data.totalRounds) || DEFAULT_BALANCE_ROUNDS),
     category: BALANCE_CATEGORIES.some((c) => c.id === data.category)
       ? (data.category as BalanceCategoryId)
       : 'all',
   };
 }
 
-export function createBalanceDraft(name: string) {
+export function createBalanceDraft(name: string, totalRounds = DEFAULT_BALANCE_ROUNDS) {
   const host = makePlayer(name, 0);
   const code = makeCode();
-  return { host, room: emptyBalanceRoom(code, host, `${host.name}의 밸런스`) };
+  return { host, room: emptyBalanceRoom(code, host, `${host.name}의 밸런스`, totalRounds) };
 }
 
 function expectedVoters(room: BalanceRoom) {
@@ -95,6 +106,10 @@ function expectedVoters(room: BalanceRoom) {
 
 export function canStartBalance(room: BalanceRoom) {
   return room.players.length % 2 === 1;
+}
+
+export function hasMoreBalanceRounds(room: BalanceRoom) {
+  return room.round < (room.totalRounds || DEFAULT_BALANCE_ROUNDS);
 }
 
 export function startBalanceRound(room: BalanceRoom, question?: BalanceQuestion) {
@@ -118,6 +133,12 @@ export function setBalanceCategory(room: BalanceRoom, playerId: string, category
   room.category = category;
   room.usedIds = [];
   room.usedTexts = [];
+  return room;
+}
+
+export function setBalanceRounds(room: BalanceRoom, playerId: string, totalRounds: number) {
+  if (room.phase !== 'lobby' || playerId !== room.hostId) return;
+  room.totalRounds = clampBalanceRounds(totalRounds);
   return room;
 }
 
@@ -158,6 +179,7 @@ export function revealBalance(room: BalanceRoom, playerId: string) {
 
 export function nextBalanceRound(room: BalanceRoom, playerId: string, question?: BalanceQuestion) {
   if (room.phase !== 'result' || playerId !== room.hostId) return;
+  if (!hasMoreBalanceRounds(room)) return;
   return startBalanceRound(room, question);
 }
 

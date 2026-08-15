@@ -3,9 +3,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SetupScreen from './SetupScreen';
+import { DEFAULT_BALANCE_ROUNDS, MAX_BALANCE_ROUNDS, MIN_BALANCE_ROUNDS } from '@/lib/balance';
 import { bootDb, createBalanceRoom, joinBalance, subscribeBalanceRooms } from '@/lib/db';
 import { getBalanceSession, getSavedName, saveBalanceSession, saveName } from '@/lib/session';
 import type { BalanceRoom } from '@/lib/types';
+
+function Stepper({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (n: number) => void;
+}) {
+  return (
+    <div className="stepper">
+      <span>{label}</span>
+      <div className="stepper-ctrl">
+        <button type="button" aria-label="줄이기" onClick={() => onChange(Math.max(min, value - 1))}>−</button>
+        <b>{value}</b>
+        <button type="button" aria-label="늘리기" onClick={() => onChange(Math.min(max, value + 1))}>+</button>
+      </div>
+    </div>
+  );
+}
 
 function errMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback;
@@ -27,6 +53,9 @@ export default function BalanceLobby() {
   const [showSetup, setShowSetup] = useState(false);
   const [savedRoom, setSavedRoom] = useState('');
   const [rooms, setRooms] = useState<BalanceRoom[]>([]);
+  const [modal, setModal] = useState(false);
+  const [totalRounds, setTotalRounds] = useState(DEFAULT_BALANCE_ROUNDS);
+  const [modalError, setModalError] = useState('');
 
   useEffect(() => {
     setName(getSavedName());
@@ -47,19 +76,28 @@ export default function BalanceLobby() {
     return true;
   };
 
-  const onCreate = async () => {
-    if (needName()) return;
+  const openCreate = () => {
     if (!bootDb()) {
       setShowSetup(true);
       return;
     }
+    setError('');
+    setModalError('');
+    setModal(true);
+  };
+
+  const onCreate = async () => {
+    if (!name.trim()) {
+      setModalError('별명을 적어주세요');
+      return;
+    }
     try {
       saveName(name);
-      const result = await createBalanceRoom(name.trim());
+      const result = await createBalanceRoom(name.trim(), totalRounds);
       saveBalanceSession(result.room.code, result.playerId);
       router.push(`/balance/${result.room.code}`);
     } catch (err) {
-      setError(errMessage(err, '방을 만들지 못했습니다'));
+      setModalError(errMessage(err, '방을 만들지 못했습니다'));
     }
   };
 
@@ -134,7 +172,7 @@ export default function BalanceLobby() {
 
       <div className="list-head">
         <h2>방 목록</h2>
-        <button className="pill desktop-only" onClick={onCreate}>+ 방 만들기</button>
+        <button className="pill desktop-only" onClick={openCreate}>+ 방 만들기</button>
       </div>
 
       {savedRoom ? (
@@ -154,7 +192,7 @@ export default function BalanceLobby() {
               <span className={`status ${room.phase === 'lobby' ? 'wait' : 'play'}`}>
                 {phaseLabel(room.phase)}
               </span>
-              <span className="room-meta">👥 {room.players.length}명</span>
+              <span className="room-meta">👥 {room.players.length}명 · {room.totalRounds || 10}문제</span>
             </div>
             <b>{room.title || room.code}</b>
             <span className="room-code-mini">{room.code}</span>
@@ -196,8 +234,42 @@ export default function BalanceLobby() {
       <p className="foot">© 2026 주루</p>
 
       <div className="home-dock">
-        <button className="pill dock-create" onClick={onCreate}>+ 방 만들기</button>
+        <button className="pill dock-create" onClick={openCreate}>+ 방 만들기</button>
       </div>
+
+      {modal ? (
+        <div className="modal-back" onClick={() => setModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="handle" />
+            <h3>방 만들기</h3>
+            <p className="modal-lead">몇 문제 진행할지 정한 뒤 방을 엽니다</p>
+            <label className="field">
+              <span>방장 별명</span>
+              <input
+                maxLength={8}
+                placeholder="별명"
+                value={name}
+                autoComplete="nickname"
+                enterKeyHint="done"
+                onChange={(e) => setName(e.target.value)}
+              />
+            </label>
+            <Stepper
+              label="🎯 진행 횟수"
+              value={totalRounds}
+              min={MIN_BALANCE_ROUNDS}
+              max={MAX_BALANCE_ROUNDS}
+              onChange={setTotalRounds}
+            />
+            <p className="modal-hint">{totalRounds}문제를 하면 게임이 끝납니다</p>
+            {modalError ? <p className="error">{modalError}</p> : null}
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setModal(false)}>취소</button>
+              <button className="pill" onClick={onCreate}>만들기</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -238,5 +238,6 @@ export type BalanceRoom = {
   usedTexts: string[];
   result: BalanceResult | null;
   round: number;
+  totalRounds: number;
   category: BalanceCategoryId;
 };
