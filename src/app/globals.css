@@ -1786,6 +1786,17 @@ input[type='number'] {
   font-weight: 800;
 }
 
+.balance-final {
+  text-align: center;
+}
+
+.balance-losers {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
 .balance-people {
   display: flex;
   flex-wrap: wrap;

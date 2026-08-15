@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import SetupScreen from './SetupScreen';
 import {
   BALANCE_CATEGORIES,
+  balanceLosers,
   canStartBalance,
   categoryLabel,
   DEFAULT_BALANCE_ROUNDS,
@@ -349,7 +350,7 @@ export default function BalanceRoom({ code }: { code: string }) {
       <div className="topbar">
         <button className="back-btn" onClick={onLeave}>←</button>
         <h1 className="title">밸런스</h1>
-        <span className="chip">주량 {totalDrinks}잔</span>
+        <span className="chip">소수 {totalDrinks}회</span>
       </div>
       <p className="balance-round">
         {categoryLabel(room.category).emoji} {categoryLabel(room.category).name} · {room.round}/{room.totalRounds || DEFAULT_BALANCE_ROUNDS} · {votedCount}명 선택
@@ -389,14 +390,28 @@ export default function BalanceRoom({ code }: { code: string }) {
         <p className="balance-status">
           {myVote ? (waiting ? `다른 사람 ${waiting}명 기다리는 중` : '집계 중') : '하나를 고르세요'}
         </p>
-      ) : (
+      ) : hasMoreBalanceRounds(room) ? (
         <p className="balance-status">
           {room.players.length < 2
             ? '혼자라서 이번엔 패스'
             : room.result?.minority === 'tie'
-              ? '동점! 이번엔 아무도 안 마십니다'
-              : `소수파 1잔 · ${me && room.votes[playerId] === room.result?.minority ? '당신이 마십니다' : '소수파만 한 잔'}`}
+              ? '동점! 이번엔 기록 없음'
+              : `소수파 +1 · ${me && room.votes[playerId] === room.result?.minority ? '당신 기록' : '마지막에 제일 많은 사람이 집니다'}`}
         </p>
+      ) : (
+        <div className="balance-final">
+          {balanceLosers(room).length ? (
+            <>
+              <p className="balance-status">패배 · 소수파 최다</p>
+              <p className="balance-losers">
+                {balanceLosers(room).map((p) => `${p.icon} ${p.name} ${p.drinks}회`).join(' · ')}
+              </p>
+              <p className="mini-help">이 사람이 마십니다</p>
+            </>
+          ) : (
+            <p className="balance-status">전원 생존. 이번엔 아무도 안 집니다</p>
+          )}
+        </div>
       )}
 
       <div className="balance-people">
@@ -425,7 +440,7 @@ export default function BalanceRoom({ code }: { code: string }) {
             {making ? '문제 만드는 중' : '다음 문제'}
           </button>
         ) : room.phase === 'result' && host ? (
-          <p className="wait-copy">{room.totalRounds}문제 끝. 주량을 확인하고 종료하세요</p>
+          <p className="wait-copy">{room.totalRounds}문제 끝. 소수파가 제일 많은 사람이 졌습니다</p>
         ) : room.phase === 'result' ? (
           <p className="wait-copy">
             {hasMoreBalanceRounds(room) ? '방장이 다음 문제를 고르는 중' : `${room.totalRounds}문제 끝났습니다`}

@@ -223,12 +223,12 @@ export default function BalanceLobby() {
       <section className="about">
         <h3>⚖️ 밸런스 게임이란?</h3>
         <p>
-          카테고리를 고르면 AI가 그 주제에 맞춰 문제를 만듭니다. 모두 고른 뒤 더 적은 쪽을 고른 사람이 한 잔 마십니다.
+          정한 횟수만큼 고른 뒤, 그동안 소수파에 가장 많이 들어간 사람이 집니다.
         </p>
         <div className="info-tags">
           <span>👥 인원 제한 없음</span>
           <span>⚡ 한 문제씩</span>
-          <span>🍻 소수파 1잔</span>
+          <span>🍻 최다 소수파 패배</span>
         </div>
       </section>
       <p className="foot">© 2026 주루</p>

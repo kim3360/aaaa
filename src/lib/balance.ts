@@ -112,6 +112,12 @@ export function hasMoreBalanceRounds(room: BalanceRoom) {
   return room.round < (room.totalRounds || DEFAULT_BALANCE_ROUNDS);
 }
 
+export function balanceLosers(room: BalanceRoom) {
+  const max = Math.max(0, ...room.players.map((p) => p.drinks));
+  if (!max) return [];
+  return room.players.filter((p) => p.drinks === max);
+}
+
 export function startBalanceRound(room: BalanceRoom, question?: BalanceQuestion) {
   if (room.phase === 'lobby' && !canStartBalance(room)) return;
   if (!question?.left || !question?.right) return;
@@ -151,8 +157,8 @@ function revealVotes(room: BalanceRoom) {
     else if (right.length < left.length) minority = 'right';
   }
   if (minority !== 'tie') {
-    const losers = minority === 'left' ? left : right;
-    losers.forEach((p) => {
+    const side = minority === 'left' ? left : right;
+    side.forEach((p) => {
       p.drinks += 1;
     });
   }
