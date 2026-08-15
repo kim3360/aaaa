@@ -50,6 +50,8 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [showSetup, setShowSetup] = useState(false);
   const [needsJoin, setNeedsJoin] = useState(false);
   const [making, setMaking] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const endKey = useRef('');
   const playerIdRef = useRef('');
 
   useEffect(() => {
@@ -76,6 +78,14 @@ export default function BalanceRoom({ code }: { code: string }) {
       }
     });
   }, [roomCode]);
+
+  useEffect(() => {
+    if (!room || room.phase !== 'result' || hasMoreBalanceRounds(room)) return;
+    const key = `${room.code}-${room.round}-${room.totalRounds}`;
+    if (endKey.current === key) return;
+    endKey.current = key;
+    setEndOpen(true);
+  }, [room]);
 
   const commit = (mutator: Parameters<typeof transactBalance>[1]) =>
     transactBalance(roomCode, mutator);
@@ -454,6 +464,38 @@ export default function BalanceRoom({ code }: { code: string }) {
           <button className="btn btn-ghost" onClick={onLeave}>나가기</button>
         )}
       </div>
+
+      {endOpen && room.phase === 'result' && !hasMoreBalanceRounds(room) ? (
+        <div className="overlay" onClick={() => setEndOpen(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="handle" />
+            <div className="event-emoji">🍻</div>
+            <h2 className="event-title">패배</h2>
+            <p className="event-desc">
+              {room.totalRounds}문제 중 소수파에 가장 많이 걸린 사람
+            </p>
+            {balanceLosers(room).length ? (
+              <div className="balance-end-names">
+                {balanceLosers(room).map((p) => (
+                  <div className="balance-end-name" key={p.id}>
+                    <span className="pawn" style={{ '--pawn': p.color } as CSSProperties}>{p.icon}</span>
+                    <b>{p.name}</b>
+                    <em>{p.drinks}회</em>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="balance-status">이번엔 아무도 안 걸렸습니다</p>
+            )}
+            <p className="mini-help" style={{ textAlign: 'center', marginTop: 8 }}>
+              {balanceLosers(room).length ? '이 사람이 마십니다' : '전원 생존'}
+            </p>
+            <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setEndOpen(false)}>
+              확인
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

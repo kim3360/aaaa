@@ -1797,6 +1797,37 @@ input[type='number'] {
   letter-spacing: -0.03em;
 }
 
+.balance-end-names {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.balance-end-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #faf8ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.balance-end-name b {
+  flex: 1;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.balance-end-name em {
+  font-style: normal;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
 .balance-people {
   display: flex;
   flex-wrap: wrap;
