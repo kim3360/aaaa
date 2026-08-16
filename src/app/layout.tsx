@@ -43,7 +43,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           rel="stylesheet"
         />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <div className="phone-frame">
           <AnalyticsBoot />
           {children}
