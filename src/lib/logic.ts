@@ -153,8 +153,6 @@ function pickOrFallback(
     finishTurn(room, '대결할 상대가 없습니다');
   } else if (kind === 'all_but_one') {
     finishTurn(room, `${pname(room, me)}만 생존. 마실 사람이 없습니다`);
-  } else if (kind === 'updown-point') {
-    finishTurn(room, '지목할 상대가 없어 넘어갑니다');
   }
 }
 
@@ -358,15 +356,6 @@ function runMinigame(room: Room, id: string) {
     const last = 7 + room.players.length;
     room.mini = { id, n: 0, last };
     room.overlay = { type: 'nunchi', n: 0, last };
-  } else if (id === 'updown') {
-    room.mini = { id, secret: 1 + rand(30), turn: room.current, low: 1, high: 30 };
-    room.overlay = {
-      type: 'updown',
-      turn: room.current,
-      low: 1,
-      high: 30,
-      msg: '1~30 숫자를 맞히세요',
-    };
   } else if (id === 'bomb') {
     room.mini = { id, holder: room.current, exploded: false };
     room.overlay = {
@@ -421,10 +410,6 @@ function handlePick(room: Room, index: number) {
   } else if (kind === 'rps-opponent') {
     room.mini = { id: 'rps', a: room.current, b: index, picks: {} };
     room.overlay = { type: 'rps', a: room.current, b: index, chosen: [] };
-  } else if (kind === 'updown-point') {
-    addDrinks(room, index, 1);
-    const turn = room.mini?.turn ?? room.current;
-    finishTurn(room, `${pname(room, turn)} 정답. ${pname(room, index)} 1잔`);
   }
 }
 
@@ -595,26 +580,6 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
     } else {
       room.mini = { ...(room.mini || { id: 'nunchi' }), n };
       room.overlay = { ...overlay, n };
-    }
-  } else if (op === 'updown' && overlay.type === 'updown' && playerIndex === overlay.turn) {
-    const g = Number(data.guess);
-    if (!g || g < 1 || g > 30) return;
-    const mini = room.mini;
-    if (!mini || mini.secret == null || mini.low == null || mini.high == null || mini.turn == null) return;
-    if (g === mini.secret) {
-      pickOrFallback(room, playerIndex, '정답! 지목 1잔', `${pname(room, playerIndex)} 맞혔습니다`, others(room, playerIndex, 'rival'), 'updown-point');
-    } else {
-      addDrinks(room, playerIndex, 1);
-      if (g < mini.secret) mini.low = Math.max(mini.low, g + 1);
-      else mini.high = Math.min(mini.high, g - 1);
-      mini.turn = (mini.turn + 1) % room.players.length;
-      room.overlay = {
-        type: 'updown',
-        turn: mini.turn,
-        low: mini.low,
-        high: mini.high,
-        msg: g < mini.secret ? `${g}은 업! 틀린 사람 1잔` : `${g}은 다운! 틀린 사람 1잔`,
-      };
     }
   } else if (op === 'bomb-pass' && overlay.type === 'bomb' && playerIndex === overlay.holder) {
     if (!room.mini || room.mini.exploded) return;

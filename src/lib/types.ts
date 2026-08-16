@@ -73,7 +73,6 @@ export type OverlayType =
   | 'spin-minigame'
   | 'baskin'
   | 'nunchi'
-  | 'updown'
   | 'bomb'
   | 'chosung'
   | 'subway'
@@ -188,7 +187,6 @@ export type GameAction =
   | { op: 'truth'; shot: boolean }
   | { op: 'sing'; ok: boolean }
   | { op: 'baskin'; k: number }
-  | { op: 'updown'; guess: number }
   | { op: 'chosung'; ok: boolean }
   | { op: 'subway'; ok: boolean }
   | { op: 'rps-pick'; v: number };

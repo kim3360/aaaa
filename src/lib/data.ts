@@ -78,12 +78,6 @@ export const MINIGAMES: MiniGame[] = [
     desc: '숫자를 순서대로 외친다. 마지막 숫자를 말한 사람이 마신다.',
   },
   {
-    id: 'updown',
-    name: '업다운',
-    emoji: '🔢',
-    desc: '1~30 숫자를 맞춘다. 틀린 사람은 1잔, 맞히면 지목 1잔.',
-  },
-  {
     id: 'bomb',
     name: '폭탄 돌리기',
     emoji: '💣',

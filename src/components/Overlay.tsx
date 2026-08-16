@@ -110,7 +110,6 @@ function OverlayBody({
   onAct: (data: GameAction) => void;
 }) {
   const spinRef = useRef<HTMLDivElement>(null);
-  const [guess, setGuess] = useState('');
   const [left, setLeft] = useState(() =>
     o.endsAt ? Math.max(0, Math.ceil((o.endsAt - Date.now()) / 1000)) : 0,
   );
@@ -328,46 +327,6 @@ function OverlayBody({
           <div className="big-num">{o.n}</div>
           <p className="mini-help">다음 숫자는 {(o.n ?? 0) + 1} · 마지막 {o.last}을 말한 사람이 마십니다</p>
           <button className="btn btn-gold" onClick={() => onAct({ op: 'nunchi' })}>내가 외친다</button>
-        </div>
-      </>
-    );
-  }
-
-  if (o.type === 'updown') {
-    return (
-      <>
-        <div className="handle" />
-        <h2 className="event-title">업다운</h2>
-        <div className="mini-stage">
-          <p className="mini-help">{playerName(room, o.turn)} 차례 · {o.msg}</p>
-          <div className="big-num" style={{ fontSize: 40 }}>{o.low} ~ {o.high}</div>
-          {mine === o.turn ? (
-            <>
-              <input
-                type="number"
-                min="1"
-                max="30"
-                inputMode="numeric"
-                placeholder="숫자"
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-                style={{
-                  width: '100%',
-                  margin: '8px 0 12px',
-                  padding: 14,
-                  borderRadius: 12,
-                  border: 0,
-                  fontSize: 18,
-                  textAlign: 'center',
-                }}
-              />
-              <button className="btn btn-gold" onClick={() => onAct({ op: 'updown', guess: Number(guess) })}>
-                맞춰보기
-              </button>
-            </>
-          ) : (
-            <ActorWait name={playerName(room, o.turn)} />
-          )}
         </div>
       </>
     );
