@@ -112,6 +112,10 @@ export function hasMoreBalanceRounds(room: BalanceRoom) {
   return room.round < (room.totalRounds || DEFAULT_BALANCE_ROUNDS);
 }
 
+export function isBalanceFinished(room: BalanceRoom) {
+  return room.phase === 'result' && !hasMoreBalanceRounds(room);
+}
+
 export function balanceLosers(room: BalanceRoom) {
   const max = Math.max(0, ...room.players.map((p) => p.drinks));
   if (!max) return [];
@@ -190,6 +194,7 @@ export function nextBalanceRound(room: BalanceRoom, playerId: string, question?:
 }
 
 export function joinBalanceRoom(room: BalanceRoom, name: string, playerId: string) {
+  if (isBalanceFinished(room)) return '이미 끝난 방입니다';
   if (room.players.some((p) => p.id === playerId)) return room;
   room.players.push(makePlayer(name, room.players.length, playerId));
   return room;

@@ -10,6 +10,7 @@ import {
   categoryLabel,
   DEFAULT_BALANCE_ROUNDS,
   hasMoreBalanceRounds,
+  isBalanceFinished,
   MAX_BALANCE_ROUNDS,
   MIN_BALANCE_ROUNDS,
   nextBalanceRound,
@@ -51,6 +52,7 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [needsJoin, setNeedsJoin] = useState(false);
   const [making, setMaking] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
+  const [endedRoom, setEndedRoom] = useState<BalanceRoomState | null>(null);
   const endKey = useRef('');
   const playerIdRef = useRef('');
 
@@ -80,12 +82,20 @@ export default function BalanceRoom({ code }: { code: string }) {
   }, [roomCode]);
 
   useEffect(() => {
-    if (!room || room.phase !== 'result' || hasMoreBalanceRounds(room)) return;
+    if (!room || !isBalanceFinished(room)) return;
     const key = `${room.code}-${room.round}-${room.totalRounds}`;
     if (endKey.current === key) return;
     endKey.current = key;
+    setEndedRoom(room);
     setEndOpen(true);
+    void deleteBalanceRoom(room.code);
   }, [room]);
+
+  const leaveEnded = () => {
+    clearBalanceSession();
+    setEndOpen(false);
+    router.push('/balance');
+  };
 
   const commit = (mutator: Parameters<typeof transactBalance>[1]) =>
     transactBalance(roomCode, mutator);
@@ -221,6 +231,13 @@ export default function BalanceRoom({ code }: { code: string }) {
   }
 
   if (!room) {
+    if (endOpen && endedRoom) {
+      return (
+        <section className="screen">
+          <EndSheet room={endedRoom} onClose={leaveEnded} />
+        </section>
+      );
+    }
     return (
       <section className="screen">
         <div className="nav">
@@ -465,38 +482,45 @@ export default function BalanceRoom({ code }: { code: string }) {
         )}
       </div>
 
-      {endOpen && room.phase === 'result' && !hasMoreBalanceRounds(room) ? (
-        <div className="overlay" onClick={() => setEndOpen(false)}>
-          <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="handle" />
-            <div className="event-emoji">🍻</div>
-            <h2 className="event-title">패배</h2>
-            <p className="event-desc">
-              {room.totalRounds}문제 중 소수파에 가장 많이 걸린 사람
-            </p>
-            {balanceLosers(room).length ? (
-              <div className="balance-end-names">
-                {balanceLosers(room).map((p) => (
-                  <div className="balance-end-name" key={p.id}>
-                    <span className="pawn" style={{ '--pawn': p.color } as CSSProperties}>{p.icon}</span>
-                    <b>{p.name}</b>
-                    <em>{p.drinks}회</em>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="balance-status">이번엔 아무도 안 걸렸습니다</p>
-            )}
-            <p className="mini-help" style={{ textAlign: 'center', marginTop: 8 }}>
-              {balanceLosers(room).length ? '이 사람이 마십니다' : '전원 생존'}
-            </p>
-            <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => setEndOpen(false)}>
-              확인
-            </button>
-          </div>
-        </div>
+      {endOpen && isBalanceFinished(room) ? (
+        <EndSheet room={endedRoom || room} onClose={leaveEnded} />
       ) : null}
     </section>
+  );
+}
+
+function EndSheet({ room, onClose }: { room: BalanceRoomState; onClose: () => void }) {
+  const losers = balanceLosers(room);
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="handle" />
+        <div className="event-emoji">🍻</div>
+        <h2 className="event-title">패배</h2>
+        <p className="event-desc">
+          {room.totalRounds}문제 중 소수파에 가장 많이 걸린 사람
+        </p>
+        {losers.length ? (
+          <div className="balance-end-names">
+            {losers.map((p) => (
+              <div className="balance-end-name" key={p.id}>
+                <span className="pawn" style={{ '--pawn': p.color } as CSSProperties}>{p.icon}</span>
+                <b>{p.name}</b>
+                <em>{p.drinks}회</em>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="balance-status">이번엔 아무도 안 걸렸습니다</p>
+        )}
+        <p className="mini-help" style={{ textAlign: 'center', marginTop: 8 }}>
+          {losers.length ? '이 사람이 마십니다' : '전원 생존'}
+        </p>
+        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onClose}>
+          확인
+        </button>
+      </div>
+    </div>
   );
 }
 

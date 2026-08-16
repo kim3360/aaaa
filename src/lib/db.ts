@@ -14,6 +14,7 @@ import {
 } from 'firebase/database';
 import {
   createBalanceDraft,
+  isBalanceFinished,
   joinBalanceRoom,
   normalizeBalanceRoom,
 } from './balance';
@@ -205,6 +206,7 @@ export async function joinBalance(code: string, name: string) {
     const snap = await get(balanceRef(key));
     if (!snap.exists()) throw new Error('방이 없어요');
     const room = normalizeBalanceRoom(snap.val());
+    if (room && isBalanceFinished(room)) throw new Error('이미 끝난 방입니다');
     throw new Error('참가하지 못했습니다');
   }
   const room = normalizeBalanceRoom(result.snapshot.val());
