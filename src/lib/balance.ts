@@ -46,6 +46,7 @@ export function emptyBalanceRoom(code: string, host: Player, title?: string, tot
     maxPlayers: 0,
     players: [host],
     question: null,
+    nextQuestion: null,
     votes: {},
     voterIds: [],
     usedIds: [],
@@ -81,6 +82,7 @@ export function normalizeBalanceRoom(raw: unknown): BalanceRoom | null {
     maxPlayers: 0,
     players,
     question: (data.question as BalanceQuestion) || null,
+    nextQuestion: (data.nextQuestion as BalanceQuestion) || null,
     votes,
     voterIds: toArray(data.voterIds).map(String),
     usedIds: toArray(data.usedIds).map(String),
@@ -136,6 +138,20 @@ export function startBalanceRound(room: BalanceRoom, question?: BalanceQuestion)
   room.usedTexts = [...(room.usedTexts || []), `${question.left} vs ${question.right}`].slice(-20);
   room.round = (room.round || 0) + 1;
   room.endAcks = [];
+  room.nextQuestion = null;
+  return room;
+}
+
+export function setNextBalanceQuestion(room: BalanceRoom, playerId: string, question: BalanceQuestion) {
+  if (playerId !== room.hostId) return;
+  if (room.phase === 'lobby') return;
+  if (!hasMoreBalanceRounds(room)) return;
+  if (!question?.left || !question?.right) return;
+  if (room.nextQuestion?.left) return room;
+  const text = `${question.left} vs ${question.right}`;
+  if ((room.usedTexts || []).includes(text)) return;
+  if (room.question && `${room.question.left} vs ${room.question.right}` === text) return;
+  room.nextQuestion = question;
   return room;
 }
 
@@ -158,6 +174,7 @@ export function setBalanceCategory(room: BalanceRoom, playerId: string, category
   room.category = category;
   room.usedIds = [];
   room.usedTexts = [];
+  room.nextQuestion = null;
   return room;
 }
 
@@ -205,7 +222,9 @@ export function revealBalance(room: BalanceRoom, playerId: string) {
 export function nextBalanceRound(room: BalanceRoom, playerId: string, question?: BalanceQuestion) {
   if (room.phase !== 'result' || playerId !== room.hostId) return;
   if (!hasMoreBalanceRounds(room)) return;
-  return startBalanceRound(room, question);
+  const next = question?.left ? question : room.nextQuestion;
+  if (!next?.left || !next?.right) return;
+  return startBalanceRound(room, next);
 }
 
 export function joinBalanceRoom(room: BalanceRoom, name: string, playerId: string) {

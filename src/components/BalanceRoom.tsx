@@ -18,6 +18,7 @@ import {
   nextBalanceRound,
   revealBalance,
   setBalanceCategory,
+  setNextBalanceQuestion,
   setBalanceRounds,
   startBalanceRound,
   voteBalance,
@@ -56,6 +57,7 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [endedRoom, setEndedRoom] = useState<BalanceRoomState | null>(null);
   const [myAcked, setMyAcked] = useState(false);
   const playerIdRef = useRef('');
+  const prefetchKey = useRef('');
 
   useEffect(() => {
     setName(getSavedName());
@@ -152,13 +154,13 @@ export default function BalanceRoom({ code }: { code: string }) {
     router.push('/balance');
   };
 
-  const askQuestion = async (): Promise<BalanceQuestion> => {
+  const askQuestion = async (target: BalanceRoomState): Promise<BalanceQuestion> => {
     const res = await fetch('/api/balance/question', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        category: room?.category || 'all',
-        avoid: room?.usedTexts || [],
+        category: target.category || 'all',
+        avoid: target.usedTexts || [],
       }),
     });
     const data = (await res.json().catch(() => ({}))) as BalanceQuestion & { error?: string };
@@ -168,19 +170,35 @@ export default function BalanceRoom({ code }: { code: string }) {
     return data;
   };
 
+  useEffect(() => {
+    if (!room || playerId !== room.hostId) return;
+    if (room.phase !== 'voting' && room.phase !== 'result') return;
+    if (!hasMoreBalanceRounds(room) || room.nextQuestion?.left) return;
+    const key = `${room.code}-${room.round}`;
+    if (prefetchKey.current === key) return;
+    prefetchKey.current = key;
+    void askQuestion(room)
+      .then((question) => commit((r) => setNextBalanceQuestion(r, playerId, question)))
+      .catch(() => {
+        prefetchKey.current = '';
+      });
+  }, [room, playerId]);
+
   const startOrNext = async (kind: 'start' | 'next') => {
-    if (kind === 'start' && room && !canStartBalance(room)) {
+    if (!room) return;
+    if (kind === 'start' && !canStartBalance(room)) {
       setError('홀수 인원일 때만 시작할 수 있습니다');
       return;
     }
-    if (kind === 'next' && room && !hasMoreBalanceRounds(room)) {
+    if (kind === 'next' && !hasMoreBalanceRounds(room)) {
       setError('설정한 횟수를 모두 진행했습니다');
       return;
     }
-    setMaking(true);
     setError('');
+    const readyNext = kind === 'next' ? room.nextQuestion : null;
+    if (!readyNext?.left) setMaking(true);
     try {
-      const question = await askQuestion();
+      const question = readyNext?.left ? readyNext : await askQuestion(room);
       await commit((r) =>
         kind === 'start' ? startBalanceRound(r, question) : nextBalanceRound(r, playerId, question),
       );
@@ -489,8 +507,8 @@ export default function BalanceRoom({ code }: { code: string }) {
           </button>
         ) : null}
         {room.phase === 'result' && host && hasMoreBalanceRounds(room) ? (
-          <button className="btn btn-primary" disabled={making} onClick={() => startOrNext('next')}>
-            {making ? '문제 만드는 중' : '다음 문제'}
+          <button className="btn btn-primary" disabled={making && !room.nextQuestion} onClick={() => startOrNext('next')}>
+            {making && !room.nextQuestion ? '문제 만드는 중' : '다음 문제'}
           </button>
         ) : room.phase === 'result' && host ? (
           <p className="wait-copy">{room.totalRounds}문제 끝. 소수파가 제일 많은 사람이 졌습니다</p>

@@ -233,6 +233,7 @@ export type BalanceRoom = {
   maxPlayers: number;
   players: Player[];
   question: BalanceQuestion | null;
+  nextQuestion: BalanceQuestion | null;
   votes: Record<string, BalanceChoice>;
   voterIds: string[];
   usedIds: string[];
