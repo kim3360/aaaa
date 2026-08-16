@@ -54,6 +54,7 @@ export function emptyBalanceRoom(code: string, host: Player, title?: string, tot
     round: 0,
     totalRounds: clampBalanceRounds(totalRounds),
     category: 'all',
+    endAcks: [],
   };
 }
 
@@ -90,6 +91,7 @@ export function normalizeBalanceRoom(raw: unknown): BalanceRoom | null {
     category: BALANCE_CATEGORIES.some((c) => c.id === data.category)
       ? (data.category as BalanceCategoryId)
       : 'all',
+    endAcks: toArray(data.endAcks).map(String),
   };
 }
 
@@ -133,6 +135,19 @@ export function startBalanceRound(room: BalanceRoom, question?: BalanceQuestion)
   room.usedIds = [...room.usedIds, question.id].slice(-40);
   room.usedTexts = [...(room.usedTexts || []), `${question.left} vs ${question.right}`].slice(-20);
   room.round = (room.round || 0) + 1;
+  room.endAcks = [];
+  return room;
+}
+
+export function waitingBalanceEndAcks(room: BalanceRoom) {
+  return room.players.filter((p) => !room.endAcks.includes(p.id));
+}
+
+export function ackBalanceEnd(room: BalanceRoom, playerId: string) {
+  if (!isBalanceFinished(room)) return;
+  if (!room.players.some((p) => p.id === playerId)) return;
+  if (!room.endAcks.includes(playerId)) room.endAcks = [...room.endAcks, playerId];
+  if (!waitingBalanceEndAcks(room).length) return null;
   return room;
 }
 

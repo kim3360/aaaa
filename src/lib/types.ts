@@ -241,4 +241,5 @@ export type BalanceRoom = {
   round: number;
   totalRounds: number;
   category: BalanceCategoryId;
+  endAcks: string[];
 };

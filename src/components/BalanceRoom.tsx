@@ -11,6 +11,8 @@ import {
   DEFAULT_BALANCE_ROUNDS,
   hasMoreBalanceRounds,
   isBalanceFinished,
+  ackBalanceEnd,
+  waitingBalanceEndAcks,
   MAX_BALANCE_ROUNDS,
   MIN_BALANCE_ROUNDS,
   nextBalanceRound,
@@ -52,9 +54,8 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [needsJoin, setNeedsJoin] = useState(false);
   const [making, setMaking] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
-  const [endedRoom, setEndedRoom] = useState<BalanceRoomState | null>(null);
-  const endKey = useRef('');
   const playerIdRef = useRef('');
+  const endingRef = useRef(false);
 
   useEffect(() => {
     setName(getSavedName());
@@ -83,18 +84,22 @@ export default function BalanceRoom({ code }: { code: string }) {
 
   useEffect(() => {
     if (!room || !isBalanceFinished(room)) return;
-    const key = `${room.code}-${room.round}-${room.totalRounds}`;
-    if (endKey.current === key) return;
-    endKey.current = key;
-    setEndedRoom(room);
+    endingRef.current = true;
     setEndOpen(true);
-    void deleteBalanceRoom(room.code);
   }, [room]);
 
-  const leaveEnded = () => {
-    clearBalanceSession();
+  useEffect(() => {
+    if (room || !endingRef.current) return;
+    endingRef.current = false;
     setEndOpen(false);
+    clearBalanceSession();
     router.push('/balance');
+  }, [room, router]);
+
+  const confirmEnd = () => {
+    commit((r) => ackBalanceEnd(r, playerIdRef.current)).catch((err) =>
+      setError(errMessage(err, '확인하지 못했습니다')),
+    );
   };
 
   const commit = (mutator: Parameters<typeof transactBalance>[1]) =>
@@ -124,6 +129,7 @@ export default function BalanceRoom({ code }: { code: string }) {
         r.players = r.players.filter((p) => p.id !== playerIdRef.current);
         if (!r.players.length) return null;
         if (r.hostId === playerIdRef.current) r.hostId = r.players[0].id;
+        if (isBalanceFinished(r) && !waitingBalanceEndAcks(r).length) return null;
         return r;
       });
     } catch {
@@ -231,12 +237,8 @@ export default function BalanceRoom({ code }: { code: string }) {
   }
 
   if (!room) {
-    if (endOpen && endedRoom) {
-      return (
-        <section className="screen">
-          <EndSheet room={endedRoom} onClose={leaveEnded} />
-        </section>
-      );
+    if (endOpen) {
+      return <section className="screen" />;
     }
     return (
       <section className="screen">
@@ -473,7 +475,7 @@ export default function BalanceRoom({ code }: { code: string }) {
             {hasMoreBalanceRounds(room) ? '방장이 다음 문제를 고르는 중' : `${room.totalRounds}문제 끝났습니다`}
           </p>
         ) : null}
-        {host ? (
+        {isBalanceFinished(room) ? null : host ? (
           <button className="btn btn-ghost" onClick={() => deleteBalanceRoom(room.code).then(() => router.push('/balance'))}>
             게임 종료
           </button>
@@ -483,16 +485,26 @@ export default function BalanceRoom({ code }: { code: string }) {
       </div>
 
       {endOpen && isBalanceFinished(room) ? (
-        <EndSheet room={endedRoom || room} onClose={leaveEnded} />
+        <EndSheet room={room} playerId={playerId} onAck={confirmEnd} />
       ) : null}
     </section>
   );
 }
 
-function EndSheet({ room, onClose }: { room: BalanceRoomState; onClose: () => void }) {
+function EndSheet({
+  room,
+  playerId,
+  onAck,
+}: {
+  room: BalanceRoomState;
+  playerId: string;
+  onAck: () => void;
+}) {
   const losers = balanceLosers(room);
+  const waiting = waitingBalanceEndAcks(room);
+  const acked = room.endAcks.includes(playerId);
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="overlay">
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="handle" />
         <div className="event-emoji">🍻</div>
@@ -516,9 +528,17 @@ function EndSheet({ room, onClose }: { room: BalanceRoomState; onClose: () => vo
         <p className="mini-help" style={{ textAlign: 'center', marginTop: 8 }}>
           {losers.length ? '이 사람이 마십니다' : '전원 생존'}
         </p>
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onClose}>
-          확인
-        </button>
+        {acked ? (
+          <p className="wait-copy" style={{ marginTop: 16 }}>
+            {waiting.length
+              ? `확인함 · ${waiting.map((p) => p.name).join(', ')} 기다리는 중`
+              : '모두 확인했습니다'}
+          </p>
+        ) : (
+          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={onAck}>
+            확인
+          </button>
+        )}
       </div>
     </div>
   );

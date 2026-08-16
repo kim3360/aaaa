@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import SetupScreen from './SetupScreen';
 import { DEFAULT_BALANCE_ROUNDS, isBalanceFinished, MAX_BALANCE_ROUNDS, MIN_BALANCE_ROUNDS } from '@/lib/balance';
-import { bootDb, createBalanceRoom, deleteBalanceRoom, joinBalance, subscribeBalanceRooms } from '@/lib/db';
+import { bootDb, createBalanceRoom, joinBalance, subscribeBalanceRooms } from '@/lib/db';
 import { getBalanceSession, getSavedName, saveBalanceSession, saveName } from '@/lib/session';
 import type { BalanceRoom } from '@/lib/types';
 
@@ -68,9 +68,6 @@ export default function BalanceLobby() {
     setReady(true);
     return subscribeBalanceRooms((next) => {
       setRooms(next.filter((room) => !isBalanceFinished(room)));
-      next.filter(isBalanceFinished).forEach((room) => {
-        void deleteBalanceRoom(room.code);
-      });
     });
   }, []);
 
