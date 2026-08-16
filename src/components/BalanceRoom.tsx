@@ -53,9 +53,9 @@ export default function BalanceRoom({ code }: { code: string }) {
   const [showSetup, setShowSetup] = useState(false);
   const [needsJoin, setNeedsJoin] = useState(false);
   const [making, setMaking] = useState(false);
-  const [endOpen, setEndOpen] = useState(false);
+  const [endedRoom, setEndedRoom] = useState<BalanceRoomState | null>(null);
+  const [myAcked, setMyAcked] = useState(false);
   const playerIdRef = useRef('');
-  const endingRef = useRef(false);
 
   useEffect(() => {
     setName(getSavedName());
@@ -75,6 +75,11 @@ export default function BalanceRoom({ code }: { code: string }) {
     return subscribeBalanceRoom(roomCode, (next) => {
       setRoom(next);
       if (!next) return;
+      if (isBalanceFinished(next)) {
+        setEndedRoom(next);
+        setNeedsJoin(false);
+        return;
+      }
       const mine = playerIdRef.current;
       if (mine && !next.players.some((p) => p.id === mine)) {
         setNeedsJoin(true);
@@ -83,23 +88,31 @@ export default function BalanceRoom({ code }: { code: string }) {
   }, [roomCode]);
 
   useEffect(() => {
-    if (!room || !isBalanceFinished(room)) return;
-    endingRef.current = true;
-    setEndOpen(true);
-  }, [room]);
-
-  useEffect(() => {
-    if (room || !endingRef.current) return;
-    endingRef.current = false;
-    setEndOpen(false);
+    if (room || !endedRoom || !myAcked) return;
     clearBalanceSession();
     router.push('/balance');
-  }, [room, router]);
+  }, [room, endedRoom, myAcked, router]);
 
-  const confirmEnd = () => {
-    commit((r) => ackBalanceEnd(r, playerIdRef.current)).catch((err) =>
-      setError(errMessage(err, '확인하지 못했습니다')),
-    );
+  const leaveEnded = () => {
+    clearBalanceSession();
+    setEndedRoom(null);
+    setMyAcked(false);
+    router.push('/balance');
+  };
+
+  const confirmEnd = async () => {
+    setMyAcked(true);
+    const view = room || endedRoom;
+    const mine = playerIdRef.current;
+    if (!view?.players.some((p) => p.id === mine)) {
+      leaveEnded();
+      return;
+    }
+    try {
+      await commit((r) => ackBalanceEnd(r, mine));
+    } catch {
+      /* 방이 이미 지워져도 결과 화면은 유지 */
+    }
   };
 
   const commit = (mutator: Parameters<typeof transactBalance>[1]) =>
@@ -205,6 +218,20 @@ export default function BalanceRoom({ code }: { code: string }) {
   if (!ready) return <section className="screen" />;
   if (showSetup) return <SetupScreen />;
 
+  const endView = (room && isBalanceFinished(room) ? room : null) || endedRoom;
+  if (endView) {
+    return (
+      <section className="screen">
+        <EndSheet
+          room={endView}
+          playerId={playerId}
+          acked={myAcked || endView.endAcks.includes(playerId)}
+          onAck={confirmEnd}
+        />
+      </section>
+    );
+  }
+
   if (needsJoin) {
     return (
       <section className="screen join-screen">
@@ -237,9 +264,6 @@ export default function BalanceRoom({ code }: { code: string }) {
   }
 
   if (!room) {
-    if (endOpen) {
-      return <section className="screen" />;
-    }
     return (
       <section className="screen">
         <div className="nav">
@@ -475,7 +499,7 @@ export default function BalanceRoom({ code }: { code: string }) {
             {hasMoreBalanceRounds(room) ? '방장이 다음 문제를 고르는 중' : `${room.totalRounds}문제 끝났습니다`}
           </p>
         ) : null}
-        {isBalanceFinished(room) ? null : host ? (
+        {host ? (
           <button className="btn btn-ghost" onClick={() => deleteBalanceRoom(room.code).then(() => router.push('/balance'))}>
             게임 종료
           </button>
@@ -483,10 +507,6 @@ export default function BalanceRoom({ code }: { code: string }) {
           <button className="btn btn-ghost" onClick={onLeave}>나가기</button>
         )}
       </div>
-
-      {endOpen && isBalanceFinished(room) ? (
-        <EndSheet room={room} playerId={playerId} onAck={confirmEnd} />
-      ) : null}
     </section>
   );
 }
@@ -494,15 +514,16 @@ export default function BalanceRoom({ code }: { code: string }) {
 function EndSheet({
   room,
   playerId,
+  acked,
   onAck,
 }: {
   room: BalanceRoomState;
   playerId: string;
+  acked: boolean;
   onAck: () => void;
 }) {
   const losers = balanceLosers(room);
-  const waiting = waitingBalanceEndAcks(room);
-  const acked = room.endAcks.includes(playerId);
+  const waiting = waitingBalanceEndAcks(room).filter((p) => p.id !== playerId || !acked);
   return (
     <div className="overlay">
       <div className="sheet" onClick={(e) => e.stopPropagation()}>

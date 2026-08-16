@@ -135,7 +135,7 @@ export async function joinRoom(code: string, name: string) {
 
 export async function transactRoom(code: string, mutator: RoomMutator) {
   const result = await runTransaction(roomRef(code), (current) => {
-    if (!current) return current;
+    if (!current) return;
     const room = normalizeRoom(current);
     if (!room) return;
     const next = mutator(room);
@@ -216,7 +216,7 @@ export async function joinBalance(code: string, name: string) {
 
 export async function transactBalance(code: string, mutator: BalanceMutator) {
   const result = await runTransaction(balanceRef(code), (current) => {
-    if (!current) return current;
+    if (!current) return;
     const room = normalizeBalanceRoom(current);
     if (!room) return;
     const next = mutator(room);
