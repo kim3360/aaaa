@@ -53,6 +53,7 @@ export type Player = {
   drinks: number;
   position: number;
   skip: boolean;
+  laps: number;
   connected: boolean;
   lastSeen: number;
   team: number;
@@ -77,7 +78,8 @@ export type OverlayType =
   | 'chosung'
   | 'subway'
   | 'rps'
-  | 'rps-tie';
+  | 'rps-tie'
+  | 'gameover';
 
 export type SpinItem = {
   i: number;
@@ -149,19 +151,23 @@ export type RoomOptions = {
   mode?: PlayMode;
   teamCount?: number;
   title?: string;
+  totalLaps?: number;
 };
 
 export type Room = {
   code: string;
   title: string;
   hostId: string;
-  phase: 'lobby' | 'playing';
+  phase: 'lobby' | 'playing' | 'ended';
   mode: PlayMode;
   teamCount: number;
   maxPlayers: number;
   players: Player[];
   current: number;
   lastDice: number;
+  laps: number;
+  totalLaps: number;
+  endAcks: string[];
   rolling: boolean;
   moving: boolean;
   overlay: OverlayState | null;
@@ -189,7 +195,8 @@ export type GameAction =
   | { op: 'baskin'; k: number }
   | { op: 'chosung'; ok: boolean }
   | { op: 'subway'; ok: boolean }
-  | { op: 'rps-pick'; v: number };
+  | { op: 'rps-pick'; v: number }
+  | { op: 'end-ack' };
 
 export type FirebaseConfig = {
   apiKey: string;

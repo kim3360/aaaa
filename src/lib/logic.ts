@@ -11,7 +11,16 @@ import {
 } from './data';
 import type { GameAction, MiniGame, MiniState, OverlayState, PlayMode, Player, Room, RoomOptions, RoulettePrize, Tile } from './types';
 
+export const MIN_LAPS = 1;
+export const MAX_LAPS = 20;
+export const DEFAULT_LAPS = 3;
+
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+export function clampLaps(n: number) {
+  const value = Math.round(Number(n) || DEFAULT_LAPS);
+  return Math.min(MAX_LAPS, Math.max(MIN_LAPS, value));
+}
 
 export function rand(n: number) {
   return Math.floor(Math.random() * n);
@@ -32,6 +41,7 @@ export function makePlayer(name: string, index: number, id = crypto.randomUUID()
     drinks: 0,
     position: 0,
     skip: false,
+    laps: 0,
     connected: true,
     lastSeen: Date.now(),
     team,
@@ -53,6 +63,9 @@ export function emptyRoom(code: string, host: Player, options: RoomOptions = {})
     players: [{ ...host, team: 0 }],
     current: 0,
     lastDice: 1,
+    laps: 0,
+    totalLaps: clampLaps(options.totalLaps ?? DEFAULT_LAPS),
+    endAcks: [],
     rolling: false,
     moving: false,
     overlay: null,
@@ -78,6 +91,10 @@ export function normalizeRoom(raw: unknown): Room | null {
   room.pending = (data.pending as Room['pending']) || null;
   room.rolling = !!room.rolling;
   room.moving = !!room.moving;
+  room.phase = room.phase === 'playing' || room.phase === 'ended' ? room.phase : 'lobby';
+  room.laps = Number(room.laps) || 0;
+  room.totalLaps = clampLaps(Number(room.totalLaps) || DEFAULT_LAPS);
+  room.endAcks = toArray(room.endAcks).map(String);
   room.mode = room.mode === 'team' ? 'team' : 'free';
   room.teamCount = Math.min(4, Math.max(2, Number(room.teamCount) || 2));
   room.maxPlayers = Math.min(MAX_PLAYERS, Math.max(1, Number(room.maxPlayers) || 8));
@@ -87,6 +104,7 @@ export function normalizeRoom(raw: unknown): Room | null {
     team: Math.min(room.teamCount - 1, Math.max(0, Number(p.team) || 0)),
     color: p.color || PLAYER_COLORS[i % PLAYER_COLORS.length],
     icon: p.icon || PLAYER_ICONS[i % PLAYER_ICONS.length],
+    laps: Number(p.laps) || 0,
   }));
   return room;
 }
@@ -455,10 +473,21 @@ export function stepMove(room: Room) {
   room.pending = null;
   if (pending.passedStart && pending.trigger) {
     addDrinks(room, pending.player, 1);
+    player.laps = (player.laps || 0) + 1;
+    room.laps = (room.laps || 0) + 1;
+    const total = room.totalLaps || DEFAULT_LAPS;
+    if (room.laps >= total) {
+      endMarbleGame(
+        room,
+        pending.player,
+        `${pname(room, pending.player)}가 ${total}바퀴째 출발점을 통과했습니다`,
+      );
+      return room;
+    }
     room.overlay = {
       type: 'lap',
       emoji: '🚩',
-      title: '한 바퀴 완주',
+      title: `${room.laps}/${total}바퀴`,
       desc: `${pname(room, pending.player)} 출발점 통과! 축하주 1잔 추가`,
       actor: pending.player,
     };
@@ -521,6 +550,10 @@ export function applyAct(room: Room, playerIndex: number, data: GameAction) {
 
   if (op === 'finish' && overlay.type === 'finish' && playerIndex === overlay.actor) {
     nextTurn(room);
+  } else if (op === 'end-ack' && overlay.type === 'gameover') {
+    const id = playerIndex >= 0 ? room.players[playerIndex]?.id : '';
+    if (!id) return;
+    return ackMarbleEnd(room, id);
   } else if (op === 'lap' && overlay.type === 'lap' && playerIndex === overlay.actor) {
     resolveTile(room, TILES[room.players[room.current].position]);
   } else if (op === 'skip-ok' && overlay.type === 'skip' && playerIndex === overlay.actor) {
@@ -663,8 +696,59 @@ export function startGame(room: Room, playerId: string) {
   if (!canStartGame(room)) return;
   room.phase = 'playing';
   room.current = 0;
+  room.laps = 0;
+  room.endAcks = [];
+  room.players.forEach((p) => {
+    p.laps = 0;
+    p.position = 0;
+    p.skip = false;
+  });
   room.overlay = null;
   return room;
+}
+
+export function isMarbleFinished(room: Room) {
+  return room.phase === 'ended' || room.overlay?.type === 'gameover';
+}
+
+export function marbleLosers(room: Room) {
+  const max = Math.max(0, ...room.players.map((p) => p.drinks));
+  if (!max) return [];
+  return room.players.filter((p) => p.drinks === max);
+}
+
+export function waitingMarbleEndAcks(room: Room) {
+  return room.players.filter((p) => !(room.endAcks || []).includes(p.id));
+}
+
+export function ackMarbleEnd(room: Room, playerId: string) {
+  if (!isMarbleFinished(room)) return;
+  if (!room.players.some((p) => p.id === playerId)) return;
+  if (!room.endAcks.includes(playerId)) room.endAcks = [...room.endAcks, playerId];
+  if (!waitingMarbleEndAcks(room).length) return null;
+  return room;
+}
+
+export function setMarbleLaps(room: Room, playerId: string, totalLaps: number) {
+  if (room.phase !== 'lobby' || playerId !== room.hostId) return;
+  room.totalLaps = clampLaps(totalLaps);
+  return room;
+}
+
+function endMarbleGame(room: Room, actor: number, message: string) {
+  room.phase = 'ended';
+  room.rolling = false;
+  room.moving = false;
+  room.pending = null;
+  room.mini = null;
+  room.endAcks = [];
+  room.overlay = {
+    type: 'gameover',
+    emoji: '🏁',
+    title: `${room.totalLaps}바퀴 종료`,
+    desc: message,
+    actor,
+  };
 }
 
 export function setPlayMode(room: Room, playerId: string, mode: PlayMode, teamCount = 2) {

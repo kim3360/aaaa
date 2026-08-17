@@ -6,6 +6,7 @@ import SetupScreen from './SetupScreen';
 import { bootDb, createRoom, joinRoom, subscribeRooms } from '@/lib/db';
 import { getSavedName, getSession, saveName, saveSession } from '@/lib/session';
 import { MAX_PLAYERS } from '@/lib/data';
+import { DEFAULT_LAPS, isMarbleFinished, MAX_LAPS, MIN_LAPS } from '@/lib/logic';
 import type { PlayMode, Room } from '@/lib/types';
 
 function errMessage(err: unknown, fallback: string) {
@@ -51,6 +52,7 @@ export default function HomeClient() {
   const [maxPlayers, setMaxPlayers] = useState(8);
   const [teamOn, setTeamOn] = useState(false);
   const [teamCount, setTeamCount] = useState(2);
+  const [totalLaps, setTotalLaps] = useState(DEFAULT_LAPS);
   const [modalError, setModalError] = useState('');
 
   useEffect(() => {
@@ -63,7 +65,9 @@ export default function HomeClient() {
       return undefined;
     }
     setReady(true);
-    return subscribeRooms(setRooms);
+    return subscribeRooms((next) => {
+      setRooms(next.filter((room) => !isMarbleFinished(room)));
+    });
   }, []);
 
   const needName = () => {
@@ -98,6 +102,7 @@ export default function HomeClient() {
         mode,
         teamCount: teamOn ? teamCount : 2,
         title: `${name.trim()}의 방`,
+        totalLaps,
       });
       saveSession(result.room.code, result.playerId);
       router.push(`/room/${result.room.code}`);
@@ -206,6 +211,7 @@ export default function HomeClient() {
               <span className="room-meta">
                 👥 {room.players.length}/{room.maxPlayers || 8}
                 {room.mode === 'team' ? ` · ${room.teamCount}팀` : ''}
+                {` · ${room.totalLaps || DEFAULT_LAPS}바퀴`}
               </span>
             </div>
             <b>{room.title || room.code}</b>
@@ -251,7 +257,7 @@ export default function HomeClient() {
         <h3>이렇게 플레이하세요</h3>
         <div className="howto-grid">
           <div className="howto-card"><span>1</span>방을 만들고 친구들과 입장해요</div>
-          <div className="howto-card"><span>2</span>방장이 인원과 팀전을 정해요</div>
+          <div className="howto-card"><span>2</span>방장이 인원·바퀴 수·팀전을 정해요</div>
           <div className="howto-card"><span>3</span>차례대로 주사위를 굴려 말을 이동해요</div>
           <div className="howto-card"><span>4</span>도착한 칸의 미션·이벤트를 수행해요</div>
         </div>
@@ -267,7 +273,7 @@ export default function HomeClient() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="handle" />
             <h3>방 만들기</h3>
-            <p className="modal-lead">최대 인원과 팀전을 정한 뒤 방을 엽니다</p>
+            <p className="modal-lead">인원과 몇 바퀴 할지 정한 뒤 방을 엽니다</p>
             <label className="field">
               <span>방장 별명</span>
               <input
@@ -280,6 +286,8 @@ export default function HomeClient() {
               />
             </label>
             <Stepper label="👥 최대 인원" value={maxPlayers} min={1} max={MAX_PLAYERS} onChange={setMaxPlayers} />
+            <Stepper label="🚩 진행 횟수" value={totalLaps} min={MIN_LAPS} max={MAX_LAPS} onChange={setTotalLaps} />
+            <p className="modal-hint">한 바퀴가 1회입니다. {totalLaps}바퀴 하면 게임이 끝납니다</p>
             <label className="toggle">
               <input type="checkbox" checked={teamOn} onChange={(e) => setTeamOn(e.target.checked)} />
               팀전으로 시작

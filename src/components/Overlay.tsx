@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { TEAM_META } from '@/lib/data';
+import { marbleLosers, waitingMarbleEndAcks } from '@/lib/logic';
 import type { GameAction, MiniGame, OverlayState, Room, RoulettePrize, SpinItem } from '@/lib/types';
 
 function ActorWait({ name }: { name: string }) {
@@ -131,6 +132,47 @@ function OverlayBody({
     const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [o.type, o.endsAt]);
+
+  if (o.type === 'gameover') {
+    const losers = marbleLosers(room);
+    const waiting = waitingMarbleEndAcks(room);
+    const acked = (room.endAcks || []).includes(room.players[mine]?.id);
+    return (
+      <>
+        <div className="handle" />
+        <div className="event-emoji">🏁</div>
+        <h2 className="event-title">{o.title || '종료'}</h2>
+        <p className="event-desc">{o.desc}</p>
+        {losers.length ? (
+          <>
+            <p className="mini-help" style={{ textAlign: 'center' }}>패배 · 가장 많이 마신 사람</p>
+            <div className="balance-end-names">
+              {losers.map((p) => (
+                <div className="balance-end-name" key={p.id}>
+                  <span className="pawn" style={{ '--pawn': p.color } as CSSProperties}>{p.icon}</span>
+                  <b>{p.name}</b>
+                  <em>{p.drinks}잔</em>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="mini-help" style={{ textAlign: 'center' }}>이번엔 아무도 안 마셨습니다</p>
+        )}
+        {acked ? (
+          <p className="wait-copy" style={{ marginTop: 16 }}>
+            {waiting.length
+              ? `확인함 · ${waiting.map((p) => p.name).join(', ')} 기다리는 중`
+              : '모두 확인했습니다'}
+          </p>
+        ) : (
+          <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => onAct({ op: 'end-ack' })}>
+            확인
+          </button>
+        )}
+      </>
+    );
+  }
 
   if (['finish', 'lap', 'skip', 'move-tile', 'minigame-intro'].includes(o.type)) {
     const op: GameAction['op'] =

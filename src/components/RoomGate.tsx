@@ -8,13 +8,19 @@ import {
   applyAct,
   beginRoll,
   canStartGame,
+  DEFAULT_LAPS,
   findPlayer,
+  isMarbleFinished,
+  MAX_LAPS,
+  MIN_LAPS,
+  setMarbleLaps,
   setPlayMode,
   setPlayerTeam,
   startGame,
   startPendingMove,
   stepMove,
   teamLabel,
+  waitingMarbleEndAcks,
 } from '@/lib/logic';
 import { MAX_PLAYERS, PLAYER_ICONS, TEAM_META, TILES, tileGridPosition } from '@/lib/data';
 import {
@@ -80,13 +86,16 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   const [ready, setReady] = useState(false);
   const [needsJoin, setNeedsJoin] = useState(false);
   const [diceFace, setDiceFace] = useState(1);
+  const [endedRoom, setEndedRoom] = useState<Room | null>(null);
+  const [myAcked, setMyAcked] = useState(false);
 
   const roomRef = useRef<Room | null>(null);
   const playerIdRef = useRef('');
   const unsubRef = useRef<(() => void) | null>(null);
   const moveLock = useRef(false);
   const diceTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevPhase = useRef<'lobby' | 'playing' | null>(null);
+  const prevPhase = useRef<'lobby' | 'playing' | 'ended' | null>(null);
+  const endedRef = useRef(false);
 
   roomRef.current = room;
   playerIdRef.current = playerId;
@@ -109,12 +118,17 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   const applyRoom = useCallback(
     (next: Room | null) => {
       if (!next) {
-        clearSession();
         setRoom(null);
-        router.replace('/');
+        if (endedRef.current) return;
+        clearSession();
+        router.replace('/marble');
         return;
       }
       setRoom(next);
+      if (isMarbleFinished(next)) {
+        endedRef.current = true;
+        setEndedRoom(next);
+      }
       if (next.overlay) setShowStats(false);
       const session = getSession();
       if (session.id) saveSession(next.code, session.id);
@@ -172,6 +186,13 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     prevPhase.current = room.phase;
   }, [room, roomCode, router, view]);
 
+  useEffect(() => {
+    if (room || !endedRoom || !myAcked) return;
+    endedRef.current = false;
+    clearSession();
+    router.push('/marble');
+  }, [room, endedRoom, myAcked, router]);
+
   const commit = (mutator: RoomMutator) => transactRoom(roomCode, mutator);
 
   const runSteps = async () => {
@@ -191,11 +212,12 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   };
 
   const act = async (data: GameAction) => {
+    if (data.op === 'end-ack') setMyAcked(true);
     try {
       const next = await commit((r) => applyAct(r, findPlayer(r, playerIdRef.current), data));
       if (data.op === 'do-move' && next?.pending?.kind === 'move') await runSteps();
     } catch (err) {
-      if (!['spin-done', 'bomb-explode', 'chosung-timeout'].includes(data.op)) {
+      if (!['spin-done', 'bomb-explode', 'chosung-timeout', 'end-ack'].includes(data.op)) {
         setError(errMessage(err, '지금은 할 수 없습니다'));
       }
     }
@@ -247,6 +269,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
         r.players = r.players.filter((p) => p.id !== playerIdRef.current);
         if (!r.players.length) return null;
         if (r.hostId === playerIdRef.current) r.hostId = r.players[0].id;
+        if (isMarbleFinished(r) && !waitingMarbleEndAcks(r).length) return null;
         return r;
       });
     } catch {
@@ -306,7 +329,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
   if (!ready) return <section className="screen" />;
   if (showSetup) return <SetupScreen />;
 
-  if (needsJoin) {
+  if (needsJoin && !endedRoom) {
     return (
       <section className="screen join-screen">
         <div className="nav">
@@ -337,7 +360,24 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
     );
   }
 
-  if (!room) return <section className="screen" />;
+  if (!room) {
+    if (endedRoom) {
+      return (
+        <section className="screen">
+          <Overlay
+            room={endedRoom}
+            mine={Math.max(0, endedRoom.players.findIndex((p) => p.id === playerId))}
+            isHost={playerId === endedRoom.hostId}
+            showStats={false}
+            onAct={act}
+            onCloseStats={() => {}}
+            onEndGame={() => router.push('/marble')}
+          />
+        </section>
+      );
+    }
+    return <section className="screen" />;
+  }
 
   if (view === 'lobby') {
     const link = typeof window === 'undefined' ? '' : `${location.origin}/room/${room.code}`;
@@ -365,6 +405,41 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
           {room.code}
         </div>
         <button className="btn btn-ghost share-btn" onClick={shareRoom}>친구에게 공유</button>
+        <p className="lobby-label">진행 횟수 · 한 바퀴가 1회입니다</p>
+        {host ? (
+          <div className="stepper" style={{ marginBottom: 14 }}>
+            <span>🚩 몇 바퀴 할까요</span>
+            <div className="stepper-ctrl">
+              <button
+                type="button"
+                aria-label="줄이기"
+                disabled={(room.totalLaps || DEFAULT_LAPS) <= MIN_LAPS}
+                onClick={() =>
+                  commit((r) => setMarbleLaps(r, playerId, (r.totalLaps || DEFAULT_LAPS) - 1)).catch((err) =>
+                    setError(errMessage(err, '횟수를 바꾸지 못했습니다')),
+                  )
+                }
+              >
+                −
+              </button>
+              <b>{room.totalLaps || DEFAULT_LAPS}</b>
+              <button
+                type="button"
+                aria-label="늘리기"
+                disabled={(room.totalLaps || DEFAULT_LAPS) >= MAX_LAPS}
+                onClick={() =>
+                  commit((r) => setMarbleLaps(r, playerId, (r.totalLaps || DEFAULT_LAPS) + 1)).catch((err) =>
+                    setError(errMessage(err, '횟수를 바꾸지 못했습니다')),
+                  )
+                }
+              >
+                +
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="sub-copy">{room.totalLaps || DEFAULT_LAPS}바퀴 하면 끝납니다</p>
+        )}
         <p className="sub-copy">회원가입 없이 별명만 적으면 됩니다</p>
         {room.phase === 'playing' ? (
           <button className="btn btn-primary" onClick={() => router.push(`/room/${roomCode}/play`)}>
@@ -482,7 +557,7 @@ export default function RoomGate({ code, view }: { code: string; view: 'lobby' |
         <button className="back-btn" onClick={() => router.push(`/room/${roomCode}`)}>←</button>
         <h1 className="title">주루마블</h1>
         <button className="chip" onClick={() => setShowStats(true)}>
-          주량 {room.players.reduce((a, p) => a + p.drinks, 0)}잔
+          {room.laps || 0}/{room.totalLaps || DEFAULT_LAPS}바퀴 · {room.players.reduce((a, p) => a + p.drinks, 0)}잔
         </button>
       </div>
       <div className={`turn-banner ${myTurn ? 'mine' : ''}`}>
